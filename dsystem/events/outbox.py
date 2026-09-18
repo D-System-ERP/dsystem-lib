@@ -1,0 +1,263 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+from datetime import datetime, timedelta
+
+from sqlalchemy import Integer, String, Text, delete, event, select, update
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
+
+from dsystem.context import get_audit_context
+from dsystem.events import publisher
+from dsystem.events.envelope import build_envelope, is_envelope
+from dsystem.models.base import BaseModel
+from dsystem.utils.timezone import utc_now
+
+logger = logging.getLogger(__name__)
+
+_OUTBOX_KEY = "_outbox_pending"
+
+_INFLIGHT: set[asyncio.Task] = set()
+"""Strong references to in-flight publishes.
+
+The event loop only holds weak references to tasks, so a task dropped here
+could be collected between the RabbitMQ publish and the mark-published write.
+The row would stay pending and the relay would republish an event that had
+already gone out.
+"""
+
+RELAY_GRACE_SECONDS = 30
+RELAY_BATCH = 200
+RELAY_MAX_ATTEMPTS = 10
+RECLAIM_AFTER_SECONDS = 300
+RELAY_INTERVAL_SECONDS = 5.0
+CLEANUP_RETENTION_DAYS = 7
+CLEANUP_EVERY_TICKS = 720
+
+
+def _publisher_ready() -> bool:
+    channel = publisher._channel
+    return channel is not None and not channel.is_closed
+
+
+async def _deliver(routing_key: str, payload: dict, event_id) -> None:
+    """Hand one outbox row to RabbitMQ, stamped with the row id.
+
+    Delivery is at-least-once — the immediate publish and the mark-published
+    write are not one atomic step, so the relay can replay a row that already
+    went out. The stamp is the same on every attempt, which is what lets a
+    consumer recognise the replay and drop it.
+    """
+    if not _publisher_ready():
+        raise RuntimeError("RabbitMQ not connected")
+    message = payload if payload.get("event_id") else {**payload, "event_id": str(event_id)}
+    await publisher.publish(routing_key, message)
+
+
+class OutboxEvent(BaseModel):
+    __tablename__ = "outbox_events"
+
+    routing_key: Mapped[str] = mapped_column(String(100), index=True)
+    payload: Mapped[dict] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    published_at: Mapped[datetime | None] = mapped_column(default=None)
+    last_error: Mapped[str | None] = mapped_column(Text, default=None)
+
+
+def publish_event(
+    db: AsyncSession,
+    routing_key: str,
+    payload: dict,
+    *,
+    organization_id=None,
+    actor_id=None,
+) -> None:
+    """Stage an event in the same transaction as the change it describes.
+
+    ``payload`` is the domain ``data``; it is wrapped in the standard envelope
+    unless it already is one. The organization and actor default to the current
+    audit context (the request's JWT), so services rarely pass them explicitly.
+    """
+    if is_envelope(payload):
+        body = payload
+    else:
+        ctx = get_audit_context()
+        body = build_envelope(
+            payload,
+            organization_id=organization_id if organization_id is not None else ctx.organization_id,
+            actor_id=actor_id if actor_id is not None else ctx.user.id,
+        )
+    row = OutboxEvent(routing_key=routing_key, payload=body, status="pending")
+    db.add(row)
+    db.sync_session.info.setdefault(_OUTBOX_KEY, []).append(row)
+
+
+async def _mark_published(session_factory, event_id) -> None:
+    async with session_factory() as session:
+        await session.execute(
+            update(OutboxEvent)
+            .where(OutboxEvent.id == event_id)
+            .values(status="published", published_at=utc_now(), attempts=OutboxEvent.attempts + 1)
+        )
+        await session.commit()
+
+
+async def _publish_one(session_factory, event_id, routing_key: str, payload: dict) -> None:
+    """Publish one staged row now, instead of waiting out the relay's grace window.
+
+    Losing the mark after a successful delivery is not a lost event, it is a
+    duplicate one: the relay finds the row still pending and sends it again.
+    So the mark is shielded from cancellation, and a cancelled mark is logged
+    rather than swallowed — ``except Exception`` never sees ``CancelledError``.
+    """
+    try:
+        await _deliver(routing_key, payload, event_id)
+    except Exception as exc:
+        logger.warning("outbox immediate publish failed (relay will retry): %s %s", routing_key, exc)
+        return
+    try:
+        await asyncio.shield(_mark_published(session_factory, event_id))
+    except asyncio.CancelledError:
+        logger.warning("outbox mark-published cancelled for %s (relay will republish it)", event_id)
+        raise
+    except Exception:
+        logger.exception("outbox mark-published failed for %s (relay will republish it)", event_id)
+
+
+def register_outbox_listeners(session_class, session_factory) -> None:
+
+    @event.listens_for(session_class, "after_commit")
+    def _publish(session):
+        staged = session.info.pop(_OUTBOX_KEY, [])
+        if not staged:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning("outbox publish deferred to relay: no running loop (count=%d)", len(staged))
+            return
+        for row in staged:
+            task = loop.create_task(_publish_one(session_factory, row.id, row.routing_key, row.payload))
+            _INFLIGHT.add(task)
+            task.add_done_callback(_INFLIGHT.discard)
+
+    @event.listens_for(session_class, "after_rollback")
+    def _drop(session):
+        session.info.pop(_OUTBOX_KEY, None)
+
+
+async def relay_once(session_factory) -> int:
+    """Publish due pending rows, keeping the broker round-trips out of any transaction.
+
+    The claim transaction flips a batch to ``publishing`` and commits before the
+    first RabbitMQ call, so a pooled connection is never held across broker I/O
+    — the old single-transaction version pinned a connection (and 200 row locks)
+    for the whole publish loop, which is exactly the pool-exhaustion shape this
+    relay exists to prevent. Delivery stays at-least-once: a crash between claim
+    and stamp leaves ``publishing`` rows for ``_reclaim_stuck`` to return to
+    pending, and consumers already drop replays by ``event_id``.
+    """
+    if not _publisher_ready():
+        return 0
+    await _reclaim_stuck(session_factory)
+    cutoff = utc_now() - timedelta(seconds=RELAY_GRACE_SECONDS)
+    async with session_factory() as session:
+        rows = (
+            await session.execute(
+                select(OutboxEvent.id, OutboxEvent.routing_key, OutboxEvent.payload)
+                .where(
+                    OutboxEvent.status == "pending",
+                    OutboxEvent.created_at < cutoff,
+                    OutboxEvent.attempts < RELAY_MAX_ATTEMPTS,
+                )
+                .order_by(OutboxEvent.created_at)
+                .limit(RELAY_BATCH)
+                .with_for_update(skip_locked=True)
+            )
+        ).all()
+        if not rows:
+            return 0
+        await session.execute(
+            update(OutboxEvent)
+            .where(OutboxEvent.id.in_([row.id for row in rows]))
+            .values(status="publishing", attempts=OutboxEvent.attempts + 1)
+        )
+        await session.commit()
+
+    published: list = []
+    failed: list[tuple[object, str]] = []
+    for row in rows:
+        try:
+            await _deliver(row.routing_key, row.payload, row.id)
+        except Exception as exc:
+            failed.append((row.id, str(exc)[:500]))
+            continue
+        published.append(row.id)
+
+    async with session_factory() as session:
+        if published:
+            await session.execute(
+                update(OutboxEvent)
+                .where(OutboxEvent.id.in_(published))
+                .values(status="published", published_at=utc_now())
+            )
+        for event_id, error in failed:
+            await session.execute(
+                update(OutboxEvent).where(OutboxEvent.id == event_id).values(status="pending", last_error=error)
+            )
+        await session.commit()
+    return len(published)
+
+
+async def _reclaim_stuck(session_factory) -> None:
+    cutoff = utc_now() - timedelta(seconds=RECLAIM_AFTER_SECONDS)
+    async with session_factory() as session:
+        result = await session.execute(
+            update(OutboxEvent)
+            .where(OutboxEvent.status == "publishing", OutboxEvent.updated_at < cutoff)
+            .values(status="pending")
+        )
+        await session.commit()
+    if result.rowcount:
+        logger.warning("outbox reclaimed %d rows stuck in publishing", result.rowcount)
+
+
+async def cleanup_published(session_factory, older_than_days: int = CLEANUP_RETENTION_DAYS) -> int:
+    cutoff = utc_now() - timedelta(days=older_than_days)
+    async with session_factory() as session:
+        result = await session.execute(
+            delete(OutboxEvent).where(OutboxEvent.status == "published", OutboxEvent.published_at < cutoff)
+        )
+        await session.commit()
+        return result.rowcount or 0
+
+
+async def run_outbox_relay(
+    session_factory,
+    *,
+    interval: float = RELAY_INTERVAL_SECONDS,
+    stop_event: asyncio.Event | None = None,
+) -> None:
+    logger.info("outbox relay loop started (interval=%.1fs)", interval)
+    tick = 0
+    while stop_event is None or not stop_event.is_set():
+        try:
+            await relay_once(session_factory)
+            if tick % CLEANUP_EVERY_TICKS == 0:
+                deleted = await cleanup_published(session_factory)
+                if deleted:
+                    logger.info("outbox cleanup deleted %d published rows", deleted)
+        except Exception:
+            logger.exception("outbox relay tick failed")
+        tick += 1
+        try:
+            if stop_event is not None:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
+            else:
+                await asyncio.sleep(interval)
+        except asyncio.TimeoutError:
+            pass
+    logger.info("outbox relay loop stopped")

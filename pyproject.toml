@@ -1,0 +1,43 @@
+[project]
+name = "dsystem"
+version = "0.1.0"
+description = "Shared library for dsystem-v2 services: base models, tenant repositories, JWT/permissions, transactional outbox, money/uom/sequences"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "fastapi-pagination>=0.12.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "pydantic[email]>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "pyjwt[crypto]>=2.10.0",
+    "httpx>=0.28.0",
+    "redis>=5.0.0",
+    "aio-pika>=9.5.0",
+    "boto3>=1.34",
+    "python-multipart>=0.0.12",
+    "phonenumbers>=8.13.0",
+    "sentry-sdk[fastapi]>=2.20.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["dsystem"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
