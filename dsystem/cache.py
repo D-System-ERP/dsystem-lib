@@ -116,3 +116,20 @@ async def claim_once(key: str, ttl: int = 7 * 24 * 3600, *, namespace: str = "ev
     except Exception as exc:
         log.warning("claim_once_failed key=%s err=%s", key, exc)
         return True
+
+
+async def release_claim(key: str, *, namespace: str = "evt") -> None:
+    """Give back a ``claim_once`` claim after the handler failed, so the redelivery (or DLQ replay) is processed."""
+    await cache_invalidate(f"{namespace}:{key}")
+
+
+async def run_claimed(key: str | None, namespace: str, handler, *args) -> None:
+    """Run ``handler(*args)`` once per ``key``; a raising handler releases the claim before re-raising."""
+    if key and not await claim_once(key, namespace=namespace):
+        return
+    try:
+        await handler(*args)
+    except Exception:
+        if key:
+            await release_claim(key, namespace=namespace)
+        raise

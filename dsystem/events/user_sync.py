@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dsystem.cache import claim_once
+from dsystem.cache import run_claimed
 from dsystem.events.consumer import start_consumer
 from dsystem.events.envelope import unwrap
 from dsystem.models.user_replica import UserReplica
@@ -76,11 +76,13 @@ async def _dispatch(session_factory: async_sessionmaker, routing_key: str, body:
     if not handler:
         return
     data, meta = unwrap(body, routing_key)
-    if meta.event_id and not await claim_once(meta.event_id, namespace="user-sync"):
-        return
-    async with session_factory() as session:
-        await handler(session, data)
-        await session.commit()
+
+    async def run():
+        async with session_factory() as session:
+            await handler(session, data)
+            await session.commit()
+
+    await run_claimed(meta.event_id, "user-sync", run)
 
 
 async def start_user_sync_consumer(rabbitmq_url: str, session_factory: async_sessionmaker, service_name: str):
