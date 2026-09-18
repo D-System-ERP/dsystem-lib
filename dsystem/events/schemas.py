@@ -200,6 +200,147 @@ class CurrencyRateUpdatedV1(EventPayload):
     is_base: bool = False
 
 
+class PaymentTermUpdatedV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    name: str
+    days: int = 0
+    penalty_percent_per_day: Decimal = Decimal("0")
+    lines: list[PaymentTermLineV1] = Field(default_factory=list)
+    partner_ids: list[UUID] = Field(default_factory=list)
+
+
+class ProductV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    code: str
+    name: str
+    type: str
+    sku: str | None = None
+    barcode: str | None = None
+    category_id: UUID | None = None
+    category_name: str | None = None
+    uom_id: UUID
+    uom_name: str
+    tracking: str = "lot"
+    has_expiry: bool = False
+    unit_price: Decimal = Decimal("0")
+    currency_code: str | None = None
+    cost_price: Decimal = Decimal("0")
+    is_active: bool = True
+
+
+class ProductDeletedV1(EventPayload):
+    id: UUID
+    organization_id: UUID | None = None
+
+
+class WarehouseV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    code: str
+    name: str
+    parent_id: UUID | None = None
+    is_group: bool = False
+    is_active: bool = True
+
+
+class WarehouseDeletedV1(EventPayload):
+    id: UUID
+    organization_id: UUID | None = None
+
+
+class UomV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    name: str
+    short_name: str
+    category_id: UUID
+    type: str
+    factor: Decimal
+    rounding: Decimal
+
+
+class PriceListV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    name: str
+    currency_code: str
+    kind: str
+    is_active: bool = True
+
+
+class StockMovedV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    product_id: UUID
+    product_name: str
+    warehouse_id: UUID
+    warehouse_name: str
+    lot_id: UUID | None = None
+    lot_number: str | None = None
+    document_id: UUID
+    document_code: str | None = None
+    document_kind: str
+    document_stage: str
+    line_id: UUID | None = None
+    direction: str
+    reason: str
+    quantity: Decimal
+    unit_cost: Decimal
+    value: Decimal
+    occurred_at: datetime
+    document_date: datetime
+    reverses_id: UUID | None = None
+    reversed_by_id: UUID | None = None
+
+
+class StockReservedV1(EventPayload):
+    organization_id: UUID
+    product_id: UUID
+    warehouse_id: UUID
+    document_id: UUID
+    quantity: Decimal
+
+
+class StockRevaluedV1(EventPayload):
+    organization_id: UUID
+    product_id: UUID
+    warehouse_id: UUID
+    lot_id: UUID
+    old_unit_cost: Decimal
+    new_unit_cost: Decimal
+    delta_value: Decimal
+    sold_share_delta: Decimal = Decimal("0")
+    document_id: UUID
+
+
+class StockSnapshotItemV1(EventPayload):
+    product_id: UUID
+    warehouse_id: UUID
+    quantity: Decimal
+    reserved_quantity: Decimal
+    cost_price: Decimal
+    value: Decimal
+
+
+class StockSnapshotTakenV1(EventPayload):
+    organization_id: UUID
+    snapshot_date: date
+    part: int = 1
+    of: int = 1
+    items: list[StockSnapshotItemV1] = Field(default_factory=list)
+
+
+class CostPriceChangedV1(EventPayload):
+    organization_id: UUID
+    product_id: UUID
+    warehouse_id: UUID | None = None
+    old: Decimal
+    new: Decimal
+    document_id: UUID | None = None
+
+
 CONTRACTS: dict[str, type[EventPayload]] = {
     "user.created": UserV1,
     "user.updated": UserV1,
@@ -215,6 +356,22 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "partner.deleted": PartnerDeletedV1,
     "notification.created": NotificationCreatedV1,
     "currency_rate.updated": CurrencyRateUpdatedV1,
+    "payment_term.updated": PaymentTermUpdatedV1,
+    "product.created": ProductV1,
+    "product.updated": ProductV1,
+    "product.deleted": ProductDeletedV1,
+    "warehouse.created": WarehouseV1,
+    "warehouse.updated": WarehouseV1,
+    "warehouse.deleted": WarehouseDeletedV1,
+    "uom.created": UomV1,
+    "uom.updated": UomV1,
+    "price_list.updated": PriceListV1,
+    "stock.moved": StockMovedV1,
+    "stock.reserved": StockReservedV1,
+    "stock.unreserved": StockReservedV1,
+    "stock.revalued": StockRevaluedV1,
+    "stock.snapshot_taken": StockSnapshotTakenV1,
+    "cost_price.changed": CostPriceChangedV1,
 }
 
 

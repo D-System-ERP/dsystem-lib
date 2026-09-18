@@ -7,6 +7,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 from dsystem.exceptions import AppException
 from dsystem.i18n import bind_locale_dir, get_language, translate
@@ -16,6 +17,17 @@ from dsystem.observability import init_sentry
 _log = logging.getLogger(__name__)
 
 _MIRRORED_UPSTREAM_STATUSES = frozenset({400, 409, 422})
+
+_INTEGRITY_CODES = {
+    "23505": ("CONFLICT", "common.unique_violation", status.HTTP_409_CONFLICT, "Record already exists"),
+    "23503": ("CONFLICT", "common.reference_in_use", status.HTTP_409_CONFLICT, "Record is referenced elsewhere"),
+    "23514": (
+        "VALIDATION_ERROR",
+        "common.check_violation",
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        "Value violates a rule",
+    ),
+}
 
 
 def _envelope(code: str, key: str, lang: str, params: dict | None, fallback: str) -> dict:
@@ -156,6 +168,30 @@ async def upstream_exception_handler(request: Request, exc: httpx.HTTPError) -> 
     return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content=envelope)
 
 
+def _constraint_name(exc: IntegrityError) -> str | None:
+    origin = getattr(exc, "orig", None)
+    for attr in ("constraint_name",):
+        value = getattr(origin, attr, None)
+        if value:
+            return str(value)
+    cause = getattr(origin, "__cause__", None)
+    value = getattr(cause, "constraint_name", None)
+    return str(value) if value else None
+
+
+async def integrity_exception_handler(request: Request, exc: IntegrityError) -> JSONResponse:
+    origin = getattr(exc, "orig", None)
+    pgcode = getattr(origin, "pgcode", None) or getattr(origin, "sqlstate", None)
+    mapping = _INTEGRITY_CODES.get(str(pgcode)) if pgcode else None
+    if mapping is None:
+        return await fallback_handler(request, exc)
+    code, key, http_status, fallback = mapping
+    lang = get_language(request)
+    params = {"constraint": _constraint_name(exc)}
+    _log.warning("Integrity error on %s %s: %s", request.method, request.url.path, params["constraint"])
+    return JSONResponse(status_code=http_status, content=_envelope(code, key, lang, params, fallback))
+
+
 async def fallback_handler(request: Request, exc: Exception) -> JSONResponse:
     _sentry_capture(exc)
     _log.exception("Unhandled exception on %s %s", request.method, request.url.path)
@@ -178,4 +214,5 @@ def register_handlers(app: FastAPI, locale_dir: Path | str | None = None) -> Non
     app.add_exception_handler(AppException, app_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(httpx.HTTPError, upstream_exception_handler)
+    app.add_exception_handler(IntegrityError, integrity_exception_handler)
     app.add_exception_handler(Exception, fallback_handler)

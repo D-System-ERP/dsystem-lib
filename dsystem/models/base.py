@@ -13,6 +13,7 @@ class Base(DeclarativeBase):
 
 class BaseModel(Base):
     __abstract__ = True
+    __mapper_args__ = {"eager_defaults": True}
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -27,6 +28,7 @@ class SoftDeleteModel(BaseModel):
 
 class ReferenceModel(Base):
     __abstract__ = True
+    __mapper_args__ = {"eager_defaults": True}
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

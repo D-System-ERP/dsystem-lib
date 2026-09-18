@@ -62,13 +62,18 @@ class TenantRepository:
         obj = self.model(organization_id=self.org_id, **kwargs)
         self.db.add(obj)
         await self.db.flush()
+        await self.db.refresh(obj, attribute_names=self._column_names())
         return obj
 
     async def update(self, obj, **kwargs):
         for key, value in kwargs.items():
             setattr(obj, key, value)
         await self.db.flush()
+        await self.db.refresh(obj, attribute_names=self._column_names())
         return obj
+
+    def _column_names(self) -> tuple[str, ...]:
+        return tuple(column.key for column in self.model.__table__.columns)
 
     async def delete(self, obj):
         if self.soft_delete and isinstance(obj, SoftDeleteModel):
