@@ -1,10 +1,10 @@
 from dsystem.models.bank_account import BankAccountMixin, normalize_account
 from dsystem.models.base import Base, BaseModel, ReferenceModel, SoftDeleteModel
 from dsystem.models.file import FileMixin
-from dsystem.models.legal_entity_replica import LegalEntityReplica
 from dsystem.models.lookup import LookupBase
-from dsystem.models.partner_replica import PartnerReplica
-from dsystem.models.user_replica import UserReplica
+
+# Replica models (UserReplica, PartnerReplica, LegalEntityReplica) are imported explicitly by the
+# services that keep them, so importing this package never registers tables a service does not own.
 
 __all__ = [
     "Base",
@@ -15,7 +15,4 @@ __all__ = [
     "LookupBase",
     "BankAccountMixin",
     "normalize_account",
-    "UserReplica",
-    "PartnerReplica",
-    "LegalEntityReplica",
 ]

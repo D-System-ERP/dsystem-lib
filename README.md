@@ -1,6 +1,6 @@
 # dsystem-lib
 
-Shared library for every dsystem-v2 Python service (`pip install -e ../dsystem`). Fork of TheCargo `thecargo-lib`,
+Shared library for every dsystem-v2 Python service — local folder `D-System/lib/`, package `dsystem` (`pip install -e ../lib`). Fork of TheCargo `thecargo-lib`,
 package name `dsystem`, exchange `dsystem.events`.
 
 | Module | What it gives a service |
