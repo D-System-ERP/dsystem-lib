@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -30,8 +31,13 @@ _INTEGRITY_CODES = {
 }
 
 
+def _json_safe(params: dict | None) -> dict:
+    """Decimal / UUID / date values (constraint limits, ids) become strings instead of breaking the response."""
+    return json.loads(json.dumps(params or {}, default=str))
+
+
 def _envelope(code: str, key: str, lang: str, params: dict | None, fallback: str) -> dict:
-    params = params or {}
+    params = _json_safe(params)
     message = translate(key, lang, params) or fallback
     return {
         "code": code,
@@ -58,9 +64,9 @@ def _classify_validation_error(msg: str, typ: str, loc: str, ctx: dict) -> tuple
     if "pattern" in typ:
         return "PATTERN_MISMATCH", "validation.pattern_mismatch", {"field": loc}
     if "greater_than" in typ:
-        return "TOO_SMALL", "validation.too_small", {"field": loc, "limit": ctx.get("gt")}
+        return "TOO_SMALL", "validation.too_small", {"field": loc, "limit": ctx.get("gt", ctx.get("ge"))}
     if "less_than" in typ:
-        return "TOO_LARGE", "validation.too_large", {"field": loc, "limit": ctx.get("lt")}
+        return "TOO_LARGE", "validation.too_large", {"field": loc, "limit": ctx.get("lt", ctx.get("le"))}
     return "INVALID", "validation.invalid_value", {"field": loc, "reason": msg}
 
 
@@ -74,6 +80,7 @@ def _format_validation_errors(exc: RequestValidationError, lang: str) -> list[di
             loc,
             err.get("ctx") or {},
         )
+        params = _json_safe(params)
         items.append(
             {
                 "loc": loc,
