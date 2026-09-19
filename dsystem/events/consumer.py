@@ -5,6 +5,8 @@ from typing import Any
 
 import aio_pika
 
+from dsystem.observability import record_event_consumed
+
 logger = logging.getLogger(__name__)
 
 EVENTS_EXCHANGE = "dsystem.events"
@@ -53,6 +55,7 @@ async def start_consumer(
             await handler(message.routing_key, body)
         except Exception:
             logger.exception("Failed to process message: %s", message.routing_key)
+            record_event_consumed(message.routing_key, "error")
             if requeue_failed and not message.redelivered:
                 await message.reject(requeue=True)
                 return
@@ -61,6 +64,7 @@ async def start_consumer(
                 return
             await message.ack()
             return
+        record_event_consumed(message.routing_key, "ok")
         await message.ack()
 
     await queue.consume(_process)

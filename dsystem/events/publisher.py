@@ -3,6 +3,8 @@ import logging
 
 import aio_pika
 
+from dsystem.observability import record_event_published
+
 logger = logging.getLogger(__name__)
 
 _connection: aio_pika.abc.AbstractRobustConnection | None = None
@@ -46,3 +48,4 @@ async def publish(routing_key: str, body: dict, exchange: str = "dsystem.events"
         ),
         routing_key=routing_key,
     )
+    record_event_published(routing_key)

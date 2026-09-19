@@ -12,3 +12,4 @@ boto3==1.43.32
 python-multipart==0.0.24
 phonenumbers==8.13.50
 sentry-sdk[fastapi]>=2.20.0
+prometheus-fastapi-instrumentator==8.1.0

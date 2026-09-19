@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import Integer, String, Text, delete, event, select, update
+from sqlalchemy import Integer, String, Text, delete, event, func, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -13,6 +13,7 @@ from dsystem.context import get_audit_context
 from dsystem.events import publisher
 from dsystem.events.envelope import build_envelope, is_envelope
 from dsystem.models.base import BaseModel
+from dsystem.observability import set_outbox_pending
 from dsystem.utils.timezone import utc_now
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ RECLAIM_AFTER_SECONDS = 300
 RELAY_INTERVAL_SECONDS = 5.0
 CLEANUP_RETENTION_DAYS = 7
 CLEANUP_EVERY_TICKS = 720
+GAUGE_EVERY_TICKS = 12
 
 
 def _publisher_ready() -> bool:
@@ -235,6 +237,20 @@ async def cleanup_published(session_factory, older_than_days: int = CLEANUP_RETE
         return result.rowcount or 0
 
 
+async def _report_pending(session_factory) -> None:
+    """Feed ``dsystem_outbox_pending``, the backlog alert's only signal.
+
+    ``publishing`` rows count as pending: a relay that dies mid-batch leaves them
+    there until ``_reclaim_stuck``, and a backlog stuck in that state is exactly
+    what the alert exists to catch.
+    """
+    async with session_factory() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(OutboxEvent).where(OutboxEvent.status.in_(("pending", "publishing")))
+        )
+    set_outbox_pending(int(count or 0))
+
+
 async def run_outbox_relay(
     session_factory,
     *,
@@ -246,6 +262,8 @@ async def run_outbox_relay(
     while stop_event is None or not stop_event.is_set():
         try:
             await relay_once(session_factory)
+            if tick % GAUGE_EVERY_TICKS == 0:
+                await _report_pending(session_factory)
             if tick % CLEANUP_EVERY_TICKS == 0:
                 deleted = await cleanup_published(session_factory)
                 if deleted:
