@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from typing import Any, Awaitable, Callable, TypeVar
 
 from dsystem.dependencies._settings import get_redis
@@ -68,6 +69,29 @@ async def cache_set(
         await redis.setex(key, ttl, serialize(value))
     except Exception as exc:
         log.warning("cache_set_failed key=%s err=%s", key, exc)
+
+
+async def cache_set_many(
+    entries: Mapping[str, Any],
+    ttl: int = 300,
+    *,
+    serialize: Callable[[Any], str] = _default_serialize,
+) -> None:
+    """Write many keys in one round trip.
+
+    A role reassignment stamps every touched user; issued one ``SETEX`` at a
+    time that is one network round trip per user, inside the request.
+    """
+    if not entries:
+        return
+    try:
+        redis = await get_redis()
+        pipe = redis.pipeline(transaction=False)
+        for key, value in entries.items():
+            pipe.setex(key, ttl, serialize(value))
+        await pipe.execute()
+    except Exception as exc:
+        log.warning("cache_set_many_failed keys=%d err=%s", len(entries), exc)
 
 
 async def cache_get(key: str) -> str | None:
