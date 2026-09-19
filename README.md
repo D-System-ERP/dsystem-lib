@@ -19,7 +19,7 @@ package name `dsystem`, exchange `dsystem.events`.
 | `dsystem.health` | `/health/live`, `/health/ready` router |
 | `dsystem.exceptions`, `dsystem.handlers`, `dsystem.i18n`, `dsystem.observability` | error envelope, i18n, Sentry/request id |
 | `dsystem.clients` | `ServiceClient`, `AuthServiceClient`, `SocketClient` |
-| `dsystem.storage`, `dsystem.public_storage` | S3-compatible object storage (MinIO) |
+| `dsystem.storage`, `dsystem.public_storage` | S3-compatible object storage (Cloudflare R2) |
 
 ```bash
 make install   # venv + editable install
