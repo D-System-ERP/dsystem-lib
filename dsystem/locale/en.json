@@ -27,5 +27,7 @@
   "validation.pattern_mismatch": "{field} format is invalid",
   "validation.too_small": "{field} must be greater than {limit}",
   "validation.too_large": "{field} must be less than {limit}",
-  "validation.invalid_value": "{field}: {reason}"
+  "validation.invalid_value": "{field}: {reason}",
+  "idempotency.key_reused": "Idempotency-Key was already used with a different payload",
+  "idempotency.in_progress": "The same request is still being processed"
 }

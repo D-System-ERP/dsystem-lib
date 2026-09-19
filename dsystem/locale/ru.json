@@ -27,5 +27,7 @@
   "validation.pattern_mismatch": "Формат поля {field} некорректен",
   "validation.too_small": "{field} должен быть больше {limit}",
   "validation.too_large": "{field} должен быть меньше {limit}",
-  "validation.invalid_value": "{field}: {reason}"
+  "validation.invalid_value": "{field}: {reason}",
+  "idempotency.key_reused": "Idempotency-Key уже использован с другим телом запроса",
+  "idempotency.in_progress": "Такой же запрос ещё обрабатывается"
 }

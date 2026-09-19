@@ -27,5 +27,7 @@
   "validation.pattern_mismatch": "{field} formati noto'g'ri",
   "validation.too_small": "{field} {limit} dan katta bo'lishi kerak",
   "validation.too_large": "{field} {limit} dan kichik bo'lishi kerak",
-  "validation.invalid_value": "{field}: {reason}"
+  "validation.invalid_value": "{field}: {reason}",
+  "idempotency.key_reused": "Idempotency-Key boshqa so'rov tanasi bilan ishlatilgan",
+  "idempotency.in_progress": "Xuddi shu so'rov hali bajarilmoqda"
 }

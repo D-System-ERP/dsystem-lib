@@ -18,11 +18,26 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from dsystem.i18n import get_language, translate
+
 logger = logging.getLogger(__name__)
 
 HEADER = "Idempotency-Key"
 _METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _LOCK_TTL = 30
+_KEY_REUSED = "idempotency.key_reused"
+_KEY_REUSED_MESSAGE = "Idempotency-Key was already used with a different payload"
+_IN_PROGRESS = "idempotency.in_progress"
+_IN_PROGRESS_MESSAGE = "The same request is still being processed"
+
+
+def _error(request: Request, status_code: int, key: str, fallback: str) -> JSONResponse:
+    """Answer in the caller's language: middleware runs before the app's handlers can translate."""
+    message = translate(key, get_language(request)) or fallback
+    return JSONResponse(
+        status_code=status_code,
+        content={"code": key, "key": key, "message": message, "params": {}, "detail": message},
+    )
 
 
 def _caller_scope(request: Request) -> str:
@@ -63,27 +78,9 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         if cached:
             record = json.loads(cached)
             if record.get("body_hash") != body_hash:
-                return JSONResponse(
-                    status_code=422,
-                    content={
-                        "code": "idempotency.key_reused",
-                        "key": "idempotency.key_reused",
-                        "message": "Idempotency-Key was already used with a different payload",
-                        "params": {},
-                        "detail": "Idempotency-Key was already used with a different payload",
-                    },
-                )
+                return _error(request, 422, _KEY_REUSED, _KEY_REUSED_MESSAGE)
             if record.get("status") == "in_progress":
-                return JSONResponse(
-                    status_code=409,
-                    content={
-                        "code": "idempotency.in_progress",
-                        "key": "idempotency.in_progress",
-                        "message": "The same request is still being processed",
-                        "params": {},
-                        "detail": "The same request is still being processed",
-                    },
-                )
+                return _error(request, 409, _IN_PROGRESS, _IN_PROGRESS_MESSAGE)
             headers = dict(record.get("headers") or {})
             headers["Idempotent-Replayed"] = "true"
             return Response(
@@ -97,16 +94,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             redis_key, json.dumps({"status": "in_progress", "body_hash": body_hash}), nx=True, ex=_LOCK_TTL
         )
         if not claimed:
-            return JSONResponse(
-                status_code=409,
-                content={
-                    "code": "idempotency.in_progress",
-                    "key": "idempotency.in_progress",
-                    "message": "The same request is still being processed",
-                    "params": {},
-                    "detail": "The same request is still being processed",
-                },
-            )
+            return _error(request, 409, _IN_PROGRESS, _IN_PROGRESS_MESSAGE)
 
         response = await call_next(request)
         chunks = [chunk async for chunk in response.body_iterator]
