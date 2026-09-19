@@ -4,6 +4,11 @@ from typing import Any
 import httpx
 
 from dsystem.context import get_audit_context
+from dsystem.dependencies.service_auth import get_service_secret
+
+
+def _ambient_secret() -> str:
+    return os.environ.get("SERVICE_SECRET_KEY") or get_service_secret()
 
 
 class RemoteServiceError(RuntimeError):
@@ -18,7 +23,7 @@ class ServiceClient:
     def __init__(self, base_url: str, *, service_secret: str | None = None, timeout: float = 10.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self._secret = service_secret if service_secret is not None else os.environ.get("SERVICE_SECRET_KEY", "")
+        self._secret = service_secret if service_secret is not None else _ambient_secret()
 
     def _headers(self) -> dict:
         headers = {"X-Service-Secret": self._secret}
