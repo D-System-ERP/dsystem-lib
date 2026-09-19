@@ -56,6 +56,15 @@ def test_operations_contracts_registered():
         "stock.snapshot_taken",
         "cost_price.changed",
         "payment_term.updated",
+        "opportunity.won",
+        "document.created",
+        "document.confirmed",
+        "document.shipped",
+        "document.fulfilment_changed",
+        "payment.confirmed",
+        "payment.cancelled",
+        "payment.over_allocated",
+        "balance.changed",
     ):
         assert key in CONTRACTS, key
 

@@ -341,6 +341,226 @@ class CostPriceChangedV1(EventPayload):
     document_id: UUID | None = None
 
 
+class OpportunityWonItemV1(EventPayload):
+    product_id: UUID
+    product_name: str | None = None
+    quantity: Decimal
+    uom_id: UUID | None = None
+    uom_name: str | None = None
+    unit_price: Decimal | None = None
+
+
+class OpportunityWonV1(EventPayload):
+    opportunity_id: UUID
+    organization_id: UUID
+    code: str
+    name: str | None = None
+    partner_id: UUID | None = None
+    contact: dict[str, Any] | None = None
+    currency_code: str | None = None
+    expected_amount: Decimal = Decimal("0")
+    assignee_id: UUID | None = None
+    won_at: datetime | None = None
+    items: list[OpportunityWonItemV1] = Field(default_factory=list)
+
+
+class DocumentLineV1(EventPayload):
+    id: UUID
+    role: str
+    line_no: int
+    product_id: UUID
+    product_name: str
+    uom_id: UUID
+    uom_name: str
+    warehouse_id: UUID | None = None
+    warehouse_name: str | None = None
+    to_warehouse_id: UUID | None = None
+    quantity: Decimal
+    base_quantity: Decimal
+    fulfilled_quantity: Decimal = Decimal("0")
+    unit_price: Decimal = Decimal("0")
+    unit_price_base: Decimal = Decimal("0")
+    discount_percent: Decimal = Decimal("0")
+    discount_amount: Decimal = Decimal("0")
+    tax_id: UUID | None = None
+    tax_percent: Decimal = Decimal("0")
+    tax_amount: Decimal = Decimal("0")
+    total: Decimal = Decimal("0")
+    total_base: Decimal = Decimal("0")
+    cost_price: Decimal = Decimal("0")
+    logistics_cost: Decimal = Decimal("0")
+    parent_line_id: UUID | None = None
+    lot_id: UUID | None = None
+    lot_number: str | None = None
+    declaration: str | None = None
+
+
+class DocumentTaxV1(EventPayload):
+    id: UUID
+    position: int
+    tax_id: UUID
+    tax_name: str | None = None
+    product_id: UUID | None = None
+    amount_type: str
+    base_amount: Decimal
+    rate_percent: Decimal = Decimal("0")
+    fixed_amount: Decimal = Decimal("0")
+    tax_amount: Decimal
+    affects_next_base: bool = False
+    add_to_cost_price: bool = False
+    add_to_total: bool = False
+
+
+class DocumentChargeV1(EventPayload):
+    id: UUID
+    vendor_id: UUID | None = None
+    vendor_name: str | None = None
+    amount: Decimal
+    currency_code: str | None = None
+    amount_base: Decimal
+    split_method: str
+    include_in_total: bool = False
+    add_to_cost_price: bool = False
+    create_payment: bool = False
+
+
+class DocumentHeaderV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    code: str
+    kind: str
+    stage: str
+    status: str
+    version: int
+    fulfilment: str = "none"
+    legal_entity_id: UUID
+    partner_id: UUID | None = None
+    partner_name: str | None = None
+    source_type: str | None = None
+    source_id: UUID | None = None
+    source_document_id: UUID | None = None
+    currency_code: str
+    total: Decimal = Decimal("0")
+    total_base: Decimal = Decimal("0")
+    document_date: datetime
+    assignee_id: UUID | None = None
+    created_by_id: UUID | None = None
+    from_stage: str | None = None
+    to_stage: str | None = None
+    cancel_reason: str | None = None
+    lines_changed: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DocumentConfirmedV1(DocumentHeaderV1):
+    legal_entity_name: str | None = None
+    contract_id: UUID | None = None
+    contract_code: str | None = None
+    price_list_id: UUID | None = None
+    shipping_address: dict[str, Any] | None = None
+    payment_term_id: UUID | None = None
+    payment_schedule: list[dict[str, Any]] | None = None
+    exchange_rate: Decimal = Decimal("1")
+    subtotal: Decimal = Decimal("0")
+    discount_amount: Decimal = Decimal("0")
+    tax_amount: Decimal = Decimal("0")
+    shipping_amount: Decimal = Decimal("0")
+    rounding_adjustment: Decimal = Decimal("0")
+    partner_amount: Decimal = Decimal("0")
+    due_date: date | None = None
+    expected_date: date | None = None
+    external_ref: str | None = None
+    confirmed_at: datetime | None = None
+    confirmed_by_id: UUID | None = None
+    attrs: dict[str, Any] = Field(default_factory=dict)
+    lines: list[DocumentLineV1] = Field(default_factory=list)
+    taxes: list[DocumentTaxV1] = Field(default_factory=list)
+    charges: list[DocumentChargeV1] = Field(default_factory=list)
+    links: list[UUID] = Field(default_factory=list)
+
+
+class DocumentShippedLineV1(EventPayload):
+    parent_line_id: UUID
+    line_id: UUID
+    quantity: Decimal
+
+
+class DocumentShippedV1(EventPayload):
+    organization_id: UUID
+    parent_id: UUID
+    parent_code: str
+    child_id: UUID
+    child_code: str
+    lines: list[DocumentShippedLineV1] = Field(default_factory=list)
+
+
+class DocumentFulfilmentChangedV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    code: str
+    kind: str
+    stage: str
+    fulfilment: str
+
+
+class PaymentAllocationV1(EventPayload):
+    id: UUID
+    document_id: UUID
+    document_code: str | None = None
+    amount: Decimal
+    document_amount: Decimal
+    exchange_rate: Decimal = Decimal("1")
+    amount_base: Decimal
+    allocated_at: datetime | None = None
+    schedule_position: int | None = None
+
+
+class PaymentConfirmedV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    code: str
+    version: int = 1
+    direction: str
+    partner_id: UUID | None = None
+    partner_name: str | None = None
+    partner_role: str | None = None
+    legal_entity_id: UUID | None = None
+    contract_id: UUID | None = None
+    method: str | None = None
+    currency_code: str
+    exchange_rate: Decimal = Decimal("1")
+    amount: Decimal
+    amount_base: Decimal
+    allocated_amount: Decimal = Decimal("0")
+    unallocated_amount: Decimal = Decimal("0")
+    payment_date: date | None = None
+    reference_number: str | None = None
+    source_type: str | None = None
+    source_id: UUID | None = None
+    allocations: list[PaymentAllocationV1] = Field(default_factory=list)
+
+
+class PaymentOverAllocatedV1(EventPayload):
+    organization_id: UUID
+    payment_id: UUID
+    document_id: UUID
+    excess: Decimal
+
+
+class BalanceChangedV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    partner_id: UUID
+    partner_name: str | None = None
+    role: str
+    entry_type: str
+    source_type: str | None = None
+    source_id: UUID | None = None
+    source_code: str | None = None
+    amount_base: Decimal
+    occurred_at: datetime | None = None
+    reverses_id: UUID | None = None
+
+
 CONTRACTS: dict[str, type[EventPayload]] = {
     "user.created": UserV1,
     "user.updated": UserV1,
@@ -372,6 +592,21 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "stock.revalued": StockRevaluedV1,
     "stock.snapshot_taken": StockSnapshotTakenV1,
     "cost_price.changed": CostPriceChangedV1,
+    "opportunity.won": OpportunityWonV1,
+    "document.created": DocumentHeaderV1,
+    "document.updated": DocumentHeaderV1,
+    "document.stage_advanced": DocumentHeaderV1,
+    "document.cancelled": DocumentHeaderV1,
+    "document.closed": DocumentHeaderV1,
+    "document.amended": DocumentHeaderV1,
+    "document.confirmed": DocumentConfirmedV1,
+    "document.shipped": DocumentShippedV1,
+    "document.received": DocumentShippedV1,
+    "document.fulfilment_changed": DocumentFulfilmentChangedV1,
+    "payment.confirmed": PaymentConfirmedV1,
+    "payment.cancelled": PaymentConfirmedV1,
+    "payment.over_allocated": PaymentOverAllocatedV1,
+    "balance.changed": BalanceChangedV1,
 }
 
 
