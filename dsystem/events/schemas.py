@@ -350,18 +350,40 @@ class OpportunityWonItemV1(EventPayload):
     unit_price: Decimal | None = None
 
 
-class OpportunityWonV1(EventPayload):
+class OpportunityV1(EventPayload):
     opportunity_id: UUID
     organization_id: UUID
     code: str
     name: str | None = None
     partner_id: UUID | None = None
+    partner_name: str | None = None
     contact: dict[str, Any] | None = None
+    stage_id: UUID | None = None
+    stage_name: str | None = None
+    stage_position: int = 0
+    probability_percent: Decimal = Decimal("0")
     currency_code: str | None = None
     expected_amount: Decimal = Decimal("0")
+    expected_amount_base: Decimal = Decimal("0")
+    expected_close_date: date | None = None
+    priority: int = 0
     assignee_id: UUID | None = None
+    team_id: UUID | None = None
+    source_id: UUID | None = None
+    source_name: str | None = None
+    status: str = "open"
+
+
+class OpportunityWonV1(OpportunityV1):
     won_at: datetime | None = None
     items: list[OpportunityWonItemV1] = Field(default_factory=list)
+
+
+class OpportunityLostV1(OpportunityV1):
+    lost_at: datetime | None = None
+    lost_reason_id: UUID | None = None
+    lost_reason_name: str | None = None
+    lost_note: str | None = None
 
 
 class DocumentLineV1(EventPayload):
@@ -671,7 +693,10 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "stock.revalued": StockRevaluedV1,
     "stock.snapshot_taken": StockSnapshotTakenV1,
     "cost_price.changed": CostPriceChangedV1,
+    "opportunity.created": OpportunityV1,
+    "opportunity.updated": OpportunityV1,
     "opportunity.won": OpportunityWonV1,
+    "opportunity.lost": OpportunityLostV1,
     "document.created": DocumentHeaderV1,
     "document.updated": DocumentHeaderV1,
     "document.stage_advanced": DocumentHeaderV1,
