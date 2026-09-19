@@ -526,12 +526,16 @@ class PaymentConfirmedV1(EventPayload):
     legal_entity_id: UUID | None = None
     contract_id: UUID | None = None
     method: str | None = None
+    category_id: UUID | None = None
     currency_code: str
     exchange_rate: Decimal = Decimal("1")
     amount: Decimal
     amount_base: Decimal
     allocated_amount: Decimal = Decimal("0")
     unallocated_amount: Decimal = Decimal("0")
+    exchange_diff_base: Decimal = Decimal("0")
+    rounding_adjustment: Decimal = Decimal("0")
+    status: str = "confirmed"
     payment_date: date | None = None
     reference_number: str | None = None
     source_type: str | None = None
@@ -559,6 +563,81 @@ class BalanceChangedV1(EventPayload):
     amount_base: Decimal
     occurred_at: datetime | None = None
     reverses_id: UUID | None = None
+
+
+class DocumentInvoicedV1(EventPayload):
+    organization_id: UUID
+    source_document_id: UUID
+    source_code: str
+    invoice_id: UUID
+    invoice_code: str
+    direction: str = "out"
+
+
+class EfakturaStatusChangedV1(EventPayload):
+    organization_id: UUID
+    invoice_id: UUID
+    invoice_code: str
+    status: str
+    roaming_id: str | None = None
+    error: str | None = None
+
+
+class CurrencyUpdatedV1(EventPayload):
+    organization_id: UUID
+    code: str
+    name: str
+    symbol: str | None = None
+    is_base: bool = False
+    is_active: bool = True
+    decimal_places: int = 2
+
+
+class BalanceSnapshotItemV1(EventPayload):
+    partner_id: UUID
+    receivable_base: Decimal
+    payable_base: Decimal
+
+
+class BalanceSnapshotTakenV1(EventPayload):
+    organization_id: UUID
+    snapshot_date: date
+    part: int = 1
+    of: int = 1
+    items: list[BalanceSnapshotItemV1] = Field(default_factory=list)
+
+
+class ContractV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    code: str
+    type: str
+    partner_id: UUID
+    legal_entity_id: UUID | None = None
+    number: str | None = None
+    signed_at: date | None = None
+    starts_at: date | None = None
+    ends_at: date | None = None
+    currency_code: str | None = None
+    status: str
+
+
+class ManualEntryV1(EventPayload):
+    id: UUID
+    organization_id: UUID
+    code: str
+    kind: str
+    category_id: UUID
+    category_name: str | None = None
+    title: str
+    entry_date: date
+    legal_entity_id: UUID | None = None
+    currency_code: str
+    exchange_rate: Decimal = Decimal("1")
+    amount: Decimal
+    amount_base: Decimal
+    payment_id: UUID | None = None
+    status: str
 
 
 CONTRACTS: dict[str, type[EventPayload]] = {
@@ -607,6 +686,15 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "payment.cancelled": PaymentConfirmedV1,
     "payment.over_allocated": PaymentOverAllocatedV1,
     "balance.changed": BalanceChangedV1,
+    "balance.snapshot_taken": BalanceSnapshotTakenV1,
+    "document.invoiced": DocumentInvoicedV1,
+    "efaktura.status_changed": EfakturaStatusChangedV1,
+    "currency.updated": CurrencyUpdatedV1,
+    "contract.created": ContractV1,
+    "contract.updated": ContractV1,
+    "contract.expired": ContractV1,
+    "manual_entry.confirmed": ManualEntryV1,
+    "manual_entry.cancelled": ManualEntryV1,
 }
 
 

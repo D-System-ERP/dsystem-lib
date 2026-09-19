@@ -65,6 +65,12 @@ def test_operations_contracts_registered():
         "payment.cancelled",
         "payment.over_allocated",
         "balance.changed",
+        "balance.snapshot_taken",
+        "document.invoiced",
+        "efaktura.status_changed",
+        "currency.updated",
+        "contract.created",
+        "manual_entry.confirmed",
     ):
         assert key in CONTRACTS, key
 
