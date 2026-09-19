@@ -6,3 +6,6 @@ lint:
 
 test:
 	. venv/bin/activate && pytest tests/ -q
+
+coverage:
+	. venv/bin/activate && pytest tests/ -q --cov=dsystem --cov-report=term-missing --cov-report=html
