@@ -18,7 +18,7 @@ from sqlalchemy import Numeric, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.sqltypes import Uuid
 
-from dsystem.cache import claim_once
+from dsystem.cache import run_claimed
 from dsystem.events.consumer import start_consumer
 from dsystem.events.envelope import unwrap
 
@@ -96,11 +96,13 @@ async def run_replica_consumer(
         if handler is None:
             return
         data, meta = unwrap(body, routing_key)
-        if meta.event_id and not await claim_once(meta.event_id, namespace=queue_name):
-            return
-        async with session_factory() as session:
-            await handler(session, data)
-            await session.commit()
+
+        async def run():
+            async with session_factory() as session:
+                await handler(session, data)
+                await session.commit()
+
+        await run_claimed(meta.event_id, queue_name, run)
 
     return await start_consumer(
         rabbitmq_url=rabbitmq_url,
