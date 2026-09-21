@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import Integer, String, Text, delete, event, func, select, update
+from sqlalchemy import Integer, String, Text, delete, event, func, or_, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -165,15 +165,18 @@ async def relay_once(session_factory) -> int:
     if not _publisher_ready():
         return 0
     await _reclaim_stuck(session_factory)
-    cutoff = utc_now() - timedelta(seconds=RELAY_GRACE_SECONDS)
+    now = utc_now()
     async with session_factory() as session:
         rows = (
             await session.execute(
                 select(OutboxEvent.id, OutboxEvent.routing_key, OutboxEvent.payload)
                 .where(
                     OutboxEvent.status == "pending",
-                    OutboxEvent.created_at < cutoff,
-                    OutboxEvent.attempts < RELAY_MAX_ATTEMPTS,
+                    OutboxEvent.created_at < now - timedelta(seconds=RELAY_GRACE_SECONDS),
+                    or_(
+                        OutboxEvent.attempts < RELAY_MAX_ATTEMPTS,
+                        OutboxEvent.updated_at < now - timedelta(seconds=RECLAIM_AFTER_SECONDS),
+                    ),
                 )
                 .order_by(OutboxEvent.created_at)
                 .limit(RELAY_BATCH)

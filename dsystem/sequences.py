@@ -10,6 +10,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import Integer, String, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,9 +56,11 @@ async def next_number(
     )
     row = (await db.execute(stmt)).scalar_one_or_none()
     if row is None:
-        row = model(organization_id=org_id, legal_entity_id=scope, kind=kind, prefix=prefix, last_number=START_NUMBER)
-        db.add(row)
-        await db.flush()
+        await db.execute(
+            insert(model)
+            .values(organization_id=org_id, legal_entity_id=scope, kind=kind, prefix=prefix, last_number=START_NUMBER)
+            .on_conflict_do_nothing(index_elements=["organization_id", "legal_entity_id", "kind", "prefix"])
+        )
         row = (await db.execute(stmt)).scalar_one()
     row.last_number += 1
     await db.flush()
