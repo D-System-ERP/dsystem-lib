@@ -11,9 +11,10 @@ def set_jwt_secret(secret: str):
 
 
 def get_jwt_secret() -> str:
-    if _jwt_secret:
-        return _jwt_secret
-    return os.environ.get("JWT_SECRET_KEY", "change-me")
+    secret = _jwt_secret or os.environ.get("JWT_SECRET_KEY")
+    if not secret:
+        raise RuntimeError("JWT secret is not configured: call set_jwt_secret() or set JWT_SECRET_KEY")
+    return secret
 
 
 def set_redis_url(url: str):
