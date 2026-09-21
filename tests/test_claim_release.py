@@ -66,9 +66,9 @@ async def test_user_sync_retries_a_failed_event(redis, monkeypatch):
     monkeypatch.setitem(user_sync.HANDLERS, "user.updated", flaky)
     body = {**build_envelope({"id": "u1", "organization_id": "o1"}, organization_id="o1"), "event_id": "evt-1"}
     with pytest.raises(RuntimeError):
-        await user_sync._dispatch(FakeSessionFactory(), "user.updated", body)
-    await user_sync._dispatch(FakeSessionFactory(), "user.updated", body)
-    await user_sync._dispatch(FakeSessionFactory(), "user.updated", body)
+        await user_sync._dispatch(FakeSessionFactory(), "user.updated", body, "crm-user-sync")
+    await user_sync._dispatch(FakeSessionFactory(), "user.updated", body, "crm-user-sync")
+    await user_sync._dispatch(FakeSessionFactory(), "user.updated", body, "crm-user-sync")
     assert calls == ["u1", "u1"]
 
 

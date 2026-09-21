@@ -71,7 +71,7 @@ HANDLERS = {
 }
 
 
-async def _dispatch(session_factory: async_sessionmaker, routing_key: str, body: dict):
+async def _dispatch(session_factory: async_sessionmaker, routing_key: str, body: dict, namespace: str):
     handler = HANDLERS.get(routing_key)
     if not handler:
         return
@@ -82,16 +82,18 @@ async def _dispatch(session_factory: async_sessionmaker, routing_key: str, body:
             await handler(session, data)
             await session.commit()
 
-    await run_claimed(meta.event_id, "user-sync", run)
+    await run_claimed(meta.event_id, namespace, run)
 
 
 async def start_user_sync_consumer(rabbitmq_url: str, session_factory: async_sessionmaker, service_name: str):
+    queue_name = f"{service_name}-user-sync"
+
     async def dispatch(routing_key: str, body: dict):
-        await _dispatch(session_factory, routing_key, body)
+        await _dispatch(session_factory, routing_key, body, queue_name)
 
     return await start_consumer(
         rabbitmq_url=rabbitmq_url,
-        queue_name=f"{service_name}-user-sync",
+        queue_name=queue_name,
         routing_keys=list(HANDLERS.keys()),
         handler=dispatch,
     )
