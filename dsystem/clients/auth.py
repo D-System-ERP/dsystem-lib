@@ -1,7 +1,7 @@
 import os
 from uuid import UUID
 
-from dsystem.cache import cache_aside
+from dsystem.cache import cache_aside, cache_invalidate
 from dsystem.clients.service import ServiceClient
 
 _TTL_SECONDS = 300
@@ -40,7 +40,16 @@ async def organization_settings(organization_id: UUID | str) -> dict:
     async def _load() -> dict:
         return await AuthServiceClient().organization(organization_id)
 
-    return await cache_aside(f"org:settings:{organization_id}", _load, ttl=_TTL_SECONDS)
+    return await cache_aside(organization_settings_key(organization_id), _load, ttl=_TTL_SECONDS)
+
+
+def organization_settings_key(organization_id: UUID | str) -> str:
+    return f"org:settings:{organization_id}"
+
+
+async def forget_organization_settings(organization_id: UUID | str) -> None:
+    """Drop the shared settings cache so every service reads the new policy on its next lookup."""
+    await cache_invalidate(organization_settings_key(organization_id))
 
 
 async def org_timezone(organization_id: UUID | str) -> str:
