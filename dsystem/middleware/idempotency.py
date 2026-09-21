@@ -18,6 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from dsystem.dependencies._settings import get_jwt_secret
 from dsystem.i18n import get_language, translate
 
 logger = logging.getLogger(__name__)
@@ -45,8 +46,8 @@ def _caller_scope(request: Request) -> str:
     if not auth.startswith("Bearer "):
         return "anon"
     try:
-        payload = jwt.decode(auth[7:], options={"verify_signature": False})
-    except jwt.PyJWTError:
+        payload = jwt.decode(auth[7:], get_jwt_secret(), algorithms=["HS256"])
+    except (jwt.PyJWTError, RuntimeError):
         return "anon"
     return f"{payload.get('org_id')}:{payload.get('user_id')}"
 

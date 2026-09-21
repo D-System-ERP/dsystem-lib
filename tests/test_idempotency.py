@@ -1,5 +1,6 @@
 import json
 
+import jwt
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -91,3 +92,39 @@ async def test_server_error_is_not_cached(app):
         await client.post("/fail", headers={"Idempotency-Key": "k3"})
     assert app.state.calls["n"] == 2
     assert not any(json.loads(v).get("status") == "done" for v in app.state.fake.store.values())
+
+
+@pytest.mark.asyncio
+async def test_forged_token_cannot_claim_the_victims_key(app, monkeypatch):
+    secret = "idempotency-test-secret-0123456789abcdef"
+    monkeypatch.setattr(_settings, "_jwt_secret", secret)
+    claims = {"type": "access", "org_id": "org-victim", "user_id": "user-victim"}
+    forged = jwt.encode(claims, "attacker-guess-0123456789abcdef-0000", algorithm="HS256")
+    genuine = jwt.encode(claims, secret, algorithm="HS256")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        await client.post(
+            "/confirm", json={"a": "attacker"}, headers={"Idempotency-Key": "k4", "Authorization": f"Bearer {forged}"}
+        )
+        victim = await client.post(
+            "/confirm", json={"a": "victim"}, headers={"Idempotency-Key": "k4", "Authorization": f"Bearer {genuine}"}
+        )
+        replay = await client.post(
+            "/confirm", json={"a": "victim"}, headers={"Idempotency-Key": "k4", "Authorization": f"Bearer {genuine}"}
+        )
+    assert victim.status_code == 200
+    assert victim.json()["echo"] == {"a": "victim"}
+    assert replay.headers["Idempotent-Replayed"] == "true"
+    assert replay.json() == victim.json()
+
+
+@pytest.mark.asyncio
+async def test_unverifiable_token_falls_back_to_anon_scope(app, monkeypatch):
+    monkeypatch.setattr(_settings, "_jwt_secret", None)
+    monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+    token = jwt.encode({"org_id": "o", "user_id": "u"}, "some-secret-0123456789abcdef-0123456789", algorithm="HS256")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        response = await client.post(
+            "/confirm", json={"a": 1}, headers={"Idempotency-Key": "k5", "Authorization": f"Bearer {token}"}
+        )
+    assert response.status_code == 200
+    assert list(app.state.fake.store) == ["idem:anon:POST:/confirm:k5"]
