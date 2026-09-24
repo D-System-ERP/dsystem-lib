@@ -52,6 +52,7 @@ class OrganizationV1(EventPayload):
     slug: str
     timezone: str
     base_currency_code: str = "UZS"
+    currency_codes: list[str] = Field(default_factory=lambda: ["UZS"])
     fiscal_year_start_month: int = 1
     price_decimal_places: int = 2
     qty_decimal_places: int = 3
@@ -605,16 +606,6 @@ class EfakturaStatusChangedV1(EventPayload):
     error: str | None = None
 
 
-class CurrencyUpdatedV1(EventPayload):
-    organization_id: UUID
-    code: str
-    name: str
-    symbol: str | None = None
-    is_base: bool = False
-    is_active: bool = True
-    decimal_places: int = 2
-
-
 class BalanceSnapshotItemV1(EventPayload):
     partner_id: UUID
     receivable_base: Decimal
@@ -714,7 +705,6 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "balance.snapshot_taken": BalanceSnapshotTakenV1,
     "document.invoiced": DocumentInvoicedV1,
     "efaktura.status_changed": EfakturaStatusChangedV1,
-    "currency.updated": CurrencyUpdatedV1,
     "contract.created": ContractV1,
     "contract.updated": ContractV1,
     "contract.expired": ContractV1,

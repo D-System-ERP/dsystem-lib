@@ -142,7 +142,7 @@ GROUPS: Final[list[dict]] = [
             {"key": "payment", "label": "Payments"},
             {"key": "contract", "label": "Contracts"},
             {"key": "manual_entry", "label": "Manual Entries"},
-            {"key": "currency", "label": "Currencies"},
+            {"key": "currency", "label": "Exchange Rates"},
         ],
     },
     {

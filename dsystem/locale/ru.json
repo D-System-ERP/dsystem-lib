@@ -29,5 +29,6 @@
   "validation.too_large": "{field} должен быть меньше {limit}",
   "validation.invalid_value": "{field}: {reason}",
   "idempotency.key_reused": "Idempotency-Key уже использован с другим телом запроса",
-  "idempotency.in_progress": "Такой же запрос ещё обрабатывается"
+  "idempotency.in_progress": "Такой же запрос ещё обрабатывается",
+  "currency.not_enabled": "Валюта {currency_code} не включена в настройках организации"
 }
