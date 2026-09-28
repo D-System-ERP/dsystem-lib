@@ -182,12 +182,24 @@ def is_external_url(reference: str) -> bool:
 
 
 @_retry
-def presigned_get_url(path: str, expires_seconds: int = 600, bucket: str | None = None) -> str:
+def presigned_get_url(
+    path: str, expires_seconds: int = 600, bucket: str | None = None, disposition: str | None = None
+) -> str:
     if _signing_client is None:
         raise RuntimeError("object storage storage not initialized")
-    return _signing_client.generate_presigned_url(
-        "get_object", Params={"Bucket": bucket or _bucket, "Key": path}, ExpiresIn=expires_seconds
-    )
+    params = {"Bucket": bucket or _bucket, "Key": path}
+    if disposition:
+        params["ResponseContentDisposition"] = disposition
+    return _signing_client.generate_presigned_url("get_object", Params=params, ExpiresIn=expires_seconds)
+
+
+def signed_url(reference: str, expires_seconds: int = 3600, disposition: str | None = None) -> str:
+    if not reference or _signing_client is None or is_external_url(reference):
+        return reference
+    bucket, path = bucket_and_path_from_url(reference)
+    if not path:
+        return reference
+    return presigned_get_url(path, expires_seconds, bucket=bucket, disposition=disposition)
 
 
 @_retry
