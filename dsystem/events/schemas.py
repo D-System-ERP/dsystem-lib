@@ -372,6 +372,7 @@ class OpportunityV1(EventPayload):
     team_id: UUID | None = None
     source_id: UUID | None = None
     source_name: str | None = None
+    project_id: UUID | None = None
     status: str = "open"
 
 
@@ -467,6 +468,9 @@ class DocumentHeaderV1(EventPayload):
     total_base: Decimal = Decimal("0")
     document_date: datetime
     assignee_id: UUID | None = None
+    project_id: UUID | None = None
+    warehouse_staff_ids: list[UUID] = Field(default_factory=list)
+    planned_end: datetime | None = None
     created_by_id: UUID | None = None
     from_stage: str | None = None
     to_stage: str | None = None
@@ -563,6 +567,7 @@ class PaymentConfirmedV1(EventPayload):
     reference_number: str | None = None
     source_type: str | None = None
     source_id: UUID | None = None
+    project_id: UUID | None = None
     allocations: list[PaymentAllocationV1] = Field(default_factory=list)
 
 

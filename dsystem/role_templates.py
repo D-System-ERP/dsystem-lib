@@ -21,9 +21,15 @@ def _view(*resources: str, scope: str = "all") -> dict[str, str]:
 ADMIN: Final[dict[str, str]] = {f"{r}.{a}": "all" for r in RESOURCES for a in actions_for(r)}
 
 SALES: Final[dict[str, str]] = {
-    **_full("partner", "bank_account", "opportunity", "activity", "task", scope="own"),
+    **_full("partner", "bank_account", "opportunity", "project", "activity", "task", scope="own"),
     **_view("partner", "opportunity", "activity", "board", "task", "notification", "contract"),
-    **{"partner.create": "all", "opportunity.create": "all", "activity.create": "all", "task.create": "all"},
+    **{
+        "partner.create": "all",
+        "opportunity.create": "all",
+        "project.create": "all",
+        "activity.create": "all",
+        "task.create": "all",
+    },
     **{f"sale.{a}": "own" for a in ("view", "create", "update")},
     **_view("product", "packaging", "warehouse", "stock", "uom", "price_list", "payment"),
     "dashboard.view": "own",
@@ -35,6 +41,7 @@ SALES: Final[dict[str, str]] = {
 }
 
 PURCHASE: Final[dict[str, str]] = {
+    "project.view": "own",
     **_full("partner", "bank_account", "activity", "task", scope="own"),
     **_view("partner", "activity", "board", "task", "notification", "contract"),
     **{"partner.create": "all", "activity.create": "all", "task.create": "all"},
@@ -51,6 +58,7 @@ PURCHASE: Final[dict[str, str]] = {
 }
 
 WAREHOUSE: Final[dict[str, str]] = {
+    "project.view": "own",
     **_full("product", "packaging", "warehouse", "stock", "uom", "transfer", "write_off"),
     **_view("partner", "sale", "purchase", "manufacture", "bom", "price_list", "notification", "task"),
     "sale.update": "all",
@@ -66,6 +74,7 @@ WAREHOUSE: Final[dict[str, str]] = {
 }
 
 ACCOUNTANT: Final[dict[str, str]] = {
+    "project.view": "own",
     **_full("payment", "contract", "manual_entry", "currency", "bank_account"),
     **_view(
         "partner", "sale", "purchase", "manufacture", "product", "warehouse", "stock", "price_list", "notification"
@@ -86,6 +95,7 @@ ACCOUNTANT: Final[dict[str, str]] = {
 }
 
 PRODUCTION: Final[dict[str, str]] = {
+    "project.view": "own",
     **_full("manufacture", "bom"),
     **_view("product", "packaging", "warehouse", "stock", "uom", "transfer", "notification", "task"),
     "transfer.create": "all",
@@ -101,6 +111,7 @@ PRODUCTION: Final[dict[str, str]] = {
 }
 
 LOADER: Final[dict[str, str]] = {
+    "project.view": "own",
     **_view("sale", "purchase", "transfer", "product", "warehouse", "stock", "notification", "task"),
     "sale.update": "all",
     "purchase.update": "all",
