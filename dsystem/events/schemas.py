@@ -471,6 +471,7 @@ class DocumentHeaderV1(EventPayload):
     project_id: UUID | None = None
     warehouse_staff_ids: list[UUID] = Field(default_factory=list)
     planned_end: datetime | None = None
+    production_document_id: UUID | None = None
     created_by_id: UUID | None = None
     from_stage: str | None = None
     to_stage: str | None = None
