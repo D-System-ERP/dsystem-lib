@@ -605,6 +605,20 @@ class DocumentInvoicedV1(EventPayload):
     direction: str = "out"
 
 
+class DocumentCreditV1(EventPayload):
+    document_id: UUID
+    credited_amount: Decimal
+    credit_version: int = 0
+
+
+class DocumentCreditedV1(EventPayload):
+    organization_id: UUID
+    invoice_id: UUID
+    refund_id: UUID
+    amount: Decimal
+    documents: list[DocumentCreditV1] = Field(default_factory=list)
+
+
 class EfakturaStatusChangedV1(EventPayload):
     organization_id: UUID
     invoice_id: UUID
@@ -701,6 +715,7 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "document.updated": DocumentHeaderV1,
     "document.stage_advanced": DocumentHeaderV1,
     "document.cancelled": DocumentHeaderV1,
+    "document.reopened": DocumentHeaderV1,
     "document.closed": DocumentHeaderV1,
     "document.amended": DocumentHeaderV1,
     "document.confirmed": DocumentConfirmedV1,
@@ -713,6 +728,7 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "balance.changed": BalanceChangedV1,
     "balance.snapshot_taken": BalanceSnapshotTakenV1,
     "document.invoiced": DocumentInvoicedV1,
+    "document.credited": DocumentCreditedV1,
     "efaktura.status_changed": EfakturaStatusChangedV1,
     "contract.created": ContractV1,
     "contract.updated": ContractV1,

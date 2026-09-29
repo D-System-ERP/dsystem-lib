@@ -67,6 +67,8 @@ def test_operations_contracts_registered():
         "balance.changed",
         "balance.snapshot_taken",
         "document.invoiced",
+        "document.credited",
+        "document.reopened",
         "efaktura.status_changed",
         "contract.created",
         "manual_entry.confirmed",
