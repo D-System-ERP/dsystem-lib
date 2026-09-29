@@ -5,6 +5,8 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from dsystem.legal_entity_scope import scope_for, set_legal_entity_scope
+
 security = HTTPBearer()
 
 SCOPE_MAP = {"a": "all", "o": "own", "t": "team", "_": None}
@@ -31,6 +33,7 @@ class TokenPayload:
     otz: str | None = None
     # The legal entity documents default to (users.default_legal_entity_id).
     default_legal_entity_id: UUID | None = None
+    legal_entity_ids: tuple[UUID, ...] = ()
     email: str | None = None
 
 
@@ -127,10 +130,12 @@ async def get_current_user(
         tz=payload.get("tz"),
         otz=payload.get("otz"),
         default_legal_entity_id=_uuid_or_none(payload.get("le")),
+        legal_entity_ids=tuple(UUID(value) for value in payload.get("les") or ()),
         email=payload.get("email"),
     )
 
     await _enforce_token_state(user, payload.get("iat"))
+    set_legal_entity_scope(scope_for(user))
 
     return user
 

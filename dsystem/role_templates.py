@@ -35,7 +35,7 @@ SALES: Final[dict[str, str]] = {
     "dashboard.view": "own",
     "report.view": "own",
     "lookup.view": "all",
-    "legal_entity.view": "all",
+    "legal_entity.view": "own",
     "user.view": "all",
     "team.view": "all",
 }
@@ -52,7 +52,7 @@ PURCHASE: Final[dict[str, str]] = {
     "dashboard.view": "own",
     "report.view": "own",
     "lookup.view": "all",
-    "legal_entity.view": "all",
+    "legal_entity.view": "own",
     "user.view": "all",
     "team.view": "all",
 }
@@ -68,7 +68,7 @@ WAREHOUSE: Final[dict[str, str]] = {
     "dashboard.view": "all",
     "report.view": "all",
     "lookup.view": "all",
-    "legal_entity.view": "all",
+    "legal_entity.view": "own",
     "user.view": "all",
     "team.view": "all",
 }
@@ -82,8 +82,8 @@ ACCOUNTANT: Final[dict[str, str]] = {
     **_full("payslip", "employee_debt"),
     "employee.view": "all",
     "partner.update": "all",
-    "legal_entity.view": "all",
-    "legal_entity.update": "all",
+    "legal_entity.view": "own",
+    "legal_entity.update": "own",
     "dashboard.view": "all",
     "report.view": "all",
     "audit.view": "all",
@@ -105,7 +105,7 @@ PRODUCTION: Final[dict[str, str]] = {
     "dashboard.view": "all",
     "report.view": "own",
     "lookup.view": "all",
-    "legal_entity.view": "all",
+    "legal_entity.view": "own",
     "user.view": "all",
     "team.view": "all",
 }

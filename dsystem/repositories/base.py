@@ -1,9 +1,10 @@
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsystem.legal_entity_scope import current_legal_entity_scope
 from dsystem.models.base import SoftDeleteModel
 from dsystem.utils.timezone import utc_now
 
@@ -13,6 +14,7 @@ T = TypeVar("T")
 class TenantRepository:
     model: type
     soft_delete: bool = False
+    legal_entity_column: ClassVar[str | None] = None
 
     def __init__(self, db: AsyncSession, org_id: UUID):
         self.db = db
@@ -22,7 +24,17 @@ class TenantRepository:
         query = select(self.model).where(self.model.organization_id == self.org_id)
         if self.soft_delete and issubclass(self.model, SoftDeleteModel):
             query = query.where(self.model.deleted_at.is_(None))
-        return query
+        return self.scope_legal_entities(query)
+
+    def scope_legal_entities(self, query: Select) -> Select:
+        """Keep rows of legal entities the current caller cannot see out of every query built on this repository."""
+        if self.legal_entity_column is None:
+            return query
+        ids = current_legal_entity_scope().as_filter()
+        return query if ids is None else query.where(self.legal_entity_clause(ids))
+
+    def legal_entity_clause(self, ids: list[UUID]) -> ColumnElement[bool]:
+        return getattr(self.model, self.legal_entity_column).in_(ids)
 
     async def get(self, id: UUID):
         result = await self.db.execute(self._base_query().where(self.model.id == id))

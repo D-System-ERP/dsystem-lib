@@ -607,6 +607,7 @@ class EfakturaStatusChangedV1(EventPayload):
     organization_id: UUID
     invoice_id: UUID
     invoice_code: str
+    legal_entity_id: UUID | None = None
     status: str
     roaming_id: str | None = None
     error: str | None = None
