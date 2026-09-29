@@ -468,6 +468,7 @@ class DocumentHeaderV1(EventPayload):
     total_base: Decimal = Decimal("0")
     document_date: datetime
     assignee_id: UUID | None = None
+    assignee_ids: list[UUID] = Field(default_factory=list)
     project_id: UUID | None = None
     warehouse_staff_ids: list[UUID] = Field(default_factory=list)
     planned_end: datetime | None = None
