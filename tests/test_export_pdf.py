@@ -74,9 +74,54 @@ def test_wide_sheets_turn_landscape():
 
 
 def test_text_wider_than_its_column_is_cut_with_an_ellipsis():
-    text = _pages(table_pdf(_sheet([("SO-1", "Очень длинное название контрагента " * 5, 1, 1)])))[0]
+    name = "Очень длинное название контрагента " * 8
+    text = _pages(table_pdf(_sheet([("SO-1", name, 1, 1)])))[0]
 
-    assert "…" in text and "контрагента Очень длинное название контрагента Очень" not in text
+    assert "…" in text and name.strip() not in text
+
+
+def test_money_dates_and_short_codes_are_never_cut_in_a_crowded_table():
+    columns = (
+        Column("document_code", 18),
+        Column("document_date", 18, DATE),
+        Column("status", 14),
+        Column("partner", 32),
+        Column("product_name", 36),
+        Column("quantity", 12, QUANTITY),
+        Column("unit_price", 14, MONEY),
+        Column("total", 16, MONEY),
+        Column("total_base", 16, MONEY, total=True),
+        Column("cost_price", 14, MONEY),
+        Column("warehouse", 24),
+    )
+    at = datetime(2026, 9, 25, 10, 40, tzinfo=timezone.utc)
+    rows = [
+        (
+            "DEMO-OF10001",
+            at,
+            "Подтверждён",
+            "Almaty Pack Trade TOO",
+            "PET preforma 42 g (1,5 l uchun)",
+            3,
+            Decimal("890000"),
+            Decimal("62000000"),
+            Decimal("784300000000"),
+            Decimal("4807000"),
+            "Tayyor mahsulot ombori",
+        )
+    ] * 3
+    text = _pages(table_pdf(_sheet(rows, columns=columns)))[0]
+
+    for whole in (
+        "DEMO-OF10001",
+        "25.09.2026 15:40",
+        "890 000.00",
+        "62 000 000.00",
+        "784 300 000 000.00",
+        "2 352 900 000 000.00",
+        "4 807 000.00",
+    ):
+        assert whole in text, whole
 
 
 def test_truncated_pdf_says_so():

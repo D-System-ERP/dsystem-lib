@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fpdf import FPDF
 
-from dsystem.export.columns import DAY, MONEY, QUANTITY, Column, label
+from dsystem.export.columns import DATE, DAY, MONEY, QUANTITY, Column, label
 from dsystem.export.sheet import Sheet, meta_text, title_text
 
 PDF_MEDIA_TYPE = "application/pdf"
@@ -22,6 +22,9 @@ _ZEBRA = (247, 247, 251)
 _LANDSCAPE_FROM = 120
 _MARGIN = 10
 _FONT_SIZE = 7.5
+_FONT_SIZES = (7.5, 7.0, 6.5, 6.0, 5.5)
+_FLEX_MIN = 24
+_SLACK = 0.3
 _ROW_HEIGHT = 5
 _HEAD_LINE = 3.4
 _PADDING = 1.2
@@ -76,20 +79,38 @@ def table_pdf(sheet: Sheet) -> bytes:
 
 def _draw_table(pdf: ReportPdf, sheet: Sheet) -> None:
     columns = sheet.columns
-    scale = pdf.epw / sum(column.width for column in columns)
-    widths = [column.width * scale for column in columns]
     aligns = ["R" if column.numeric else "L" for column in columns]
+    rigid = [_rigid(column) for column in columns]
     headings = [label(f"report.column.{column.key}", sheet.lang) for column in columns]
+    sums = {index: Decimal(0) for index, column in enumerate(columns) if column.total}
+    body = []
+    for values in sheet.rows:
+        body.append([cell_text(value, column, sheet.zone) for column, value in zip(columns, values, strict=True)])
+        for index in sums:
+            value = values[index]
+            if isinstance(value, (Decimal, int, float)) and not isinstance(value, bool):
+                sums[index] += Decimal(str(value))
+    totals = None
+    if sums:
+        totals = [
+            cell_text(sums[index], column, sheet.zone)
+            if index in sums
+            else (label("report.total", sheet.lang) if index == 0 else "")
+            for index, column in enumerate(columns)
+        ]
+    size, widths = _layout(pdf, columns, headings, body, totals)
+    row_height = _ROW_HEIGHT * size / _FONT_SIZE
+    head_line = _HEAD_LINE * size / _FONT_SIZE
     bottom = pdf.h - _BOTTOM
     pdf.set_draw_color(*_RULE)
     pdf.set_line_width(0.1)
 
     def heading() -> float:
-        pdf.set_font(SEMIBOLD, "", _FONT_SIZE)
+        pdf.set_font(SEMIBOLD, "", size)
         lines = max(
-            len(pdf.multi_cell(w, _HEAD_LINE, text, dry_run=True, output="LINES")) for w, text in zip(widths, headings)
+            len(pdf.multi_cell(w, head_line, text, dry_run=True, output="LINES")) for w, text in zip(widths, headings)
         )
-        height = lines * _HEAD_LINE + 2 * _PADDING
+        height = lines * head_line + 2 * _PADDING
         top = pdf.get_y()
         pdf.set_fill_color(*_HEAD_FILL)
         pdf.rect(pdf.l_margin, top, pdf.epw, height, style="F")
@@ -97,52 +118,85 @@ def _draw_table(pdf: ReportPdf, sheet: Sheet) -> None:
         x = pdf.l_margin
         for w, text, align in zip(widths, headings, aligns):
             pdf.set_xy(x, top + _PADDING)
-            pdf.multi_cell(w, _HEAD_LINE, text, align=align)
+            pdf.multi_cell(w, head_line, text, align=align)
             x += w
-        pdf.set_font(FAMILY, "", _FONT_SIZE)
+        pdf.set_font(FAMILY, "", size)
         pdf.set_text_color(*_INK)
         return top + height
 
     def row(values: list[str], y: float, zebra: bool) -> float:
+        if y + row_height > bottom:
+            pdf.add_page()
+            y = heading()
         if zebra:
             pdf.set_fill_color(*_ZEBRA)
-            pdf.rect(pdf.l_margin, y, pdf.epw, _ROW_HEIGHT, style="F")
+            pdf.rect(pdf.l_margin, y, pdf.epw, row_height, style="F")
         x = pdf.l_margin
-        for w, text, align in zip(widths, values, aligns):
+        for w, text, align, whole in zip(widths, values, aligns, rigid):
             pdf.set_xy(x, y)
-            pdf.cell(w, _ROW_HEIGHT, _fit(pdf, text, w - 2 * _PADDING), align=align)
+            pdf.cell(w, row_height, text if whole else _fit(pdf, text, w - 2 * _PADDING), align=align)
             x += w
-        pdf.line(pdf.l_margin, y + _ROW_HEIGHT, pdf.l_margin + pdf.epw, y + _ROW_HEIGHT)
-        return y + _ROW_HEIGHT
+        pdf.line(pdf.l_margin, y + row_height, pdf.l_margin + pdf.epw, y + row_height)
+        return y + row_height
 
     y = heading()
-    sums = {index: Decimal(0) for index, column in enumerate(columns) if column.total}
-    for number, values in enumerate(sheet.rows):
-        if y + _ROW_HEIGHT > bottom:
-            pdf.add_page()
-            y = heading()
-        y = row(
-            [cell_text(value, column, sheet.zone) for column, value in zip(columns, values, strict=True)],
-            y,
-            number % 2 == 1,
-        )
-        for index in sums:
-            value = values[index]
-            if isinstance(value, (Decimal, int, float)) and not isinstance(value, bool):
-                sums[index] += Decimal(str(value))
-    if sums:
-        if y + _ROW_HEIGHT > bottom:
-            pdf.add_page()
-            y = heading()
-        pdf.set_font(FAMILY, "B", _FONT_SIZE)
-        totals = [
-            cell_text(sums[index], column, sheet.zone)
-            if index in sums
-            else (label("report.total", sheet.lang) if index == 0 else "")
-            for index, column in enumerate(columns)
-        ]
+    for number, values in enumerate(body):
+        y = row(values, y, number % 2 == 1)
+    if totals is not None:
+        pdf.set_font(FAMILY, "B", size)
         row(totals, y, False)
-        pdf.set_font(FAMILY, "", _FONT_SIZE)
+        pdf.set_font(FAMILY, "", size)
+
+
+def _layout(
+    pdf: FPDF, columns, headings: list[str], body: list[list[str]], totals: list[str] | None
+) -> tuple[float, list[float]]:
+    pdf.set_font(FAMILY, "", _FONT_SIZE)
+    natural = [max((pdf.get_string_width(values[i]) for values in body), default=0.0) for i in range(len(columns))]
+    if totals is not None:
+        pdf.set_font(FAMILY, "B", _FONT_SIZE)
+        natural = [max(width, pdf.get_string_width(text)) for width, text in zip(natural, totals)]
+    pdf.set_font(SEMIBOLD, "", _FONT_SIZE)
+    words = [max(pdf.get_string_width(word) for word in (text.split() or [""])) for text in headings]
+    rigid = [_rigid(column) for column in columns]
+
+    for size in _FONT_SIZES:
+        ratio = size / _FONT_SIZE
+        need = [max(n, w) * ratio + 2 * _PADDING + _SLACK for n, w in zip(natural, words)]
+        floor = [
+            need[i] if rigid[i] else max(words[i] * ratio + 2 * _PADDING, min(need[i], _FLEX_MIN))
+            for i in range(len(columns))
+        ]
+        if sum(floor) <= pdf.epw or size == _FONT_SIZES[-1]:
+            return size, _spread(pdf.epw, floor, need, rigid)
+    raise AssertionError
+
+
+def _rigid(column: Column) -> bool:
+    return column.numeric or column.format in (DATE, DAY)
+
+
+def _spread(total: float, floor: list[float], need: list[float], rigid: list[bool]) -> list[float]:
+    if sum(floor) > total:
+        scale = total / sum(floor)
+        return [width * scale for width in floor]
+    widths = list(floor)
+    extra = total - sum(widths)
+    pending = [i for i, fixed in enumerate(rigid) if not fixed and need[i] > widths[i]]
+    while extra > 0.01 and pending:
+        share = extra / len(pending)
+        still = []
+        for i in pending:
+            add = min(share, need[i] - widths[i])
+            widths[i] += add
+            extra -= add
+            if need[i] - widths[i] > 0.01:
+                still.append(i)
+        pending = still
+    if extra > 0.01:
+        grown = sum(widths)
+        widths = [width + extra * width / grown for width in widths]
+    return widths
 
 
 def _fit(pdf: FPDF, text: str, width: float) -> str:
