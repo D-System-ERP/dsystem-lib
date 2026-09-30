@@ -33,5 +33,6 @@
   "currency.not_enabled": "{currency_code} is not enabled in the organization settings",
   "report.total": "Total",
   "report.generated_at": "Downloaded {at}",
-  "report.truncated": "first {limit} rows only"
+  "report.truncated": "first {limit} rows only",
+  "report.page": "Page {page} of {pages}"
 }

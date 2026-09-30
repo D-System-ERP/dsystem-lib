@@ -33,5 +33,6 @@
   "currency.not_enabled": "{currency_code} valyutasi tashkilot sozlamalarida yoqilmagan",
   "report.total": "Jami",
   "report.generated_at": "Yuklab olindi: {at}",
-  "report.truncated": "faqat birinchi {limit} qator"
+  "report.truncated": "faqat birinchi {limit} qator",
+  "report.page": "{page}/{pages}-bet"
 }

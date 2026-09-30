@@ -3,3 +3,4 @@ pytest-asyncio==0.26.0
 ruff==0.15.9
 pytest-cov==7.0.0
 openpyxl==3.1.5
+pypdf==6.1.1

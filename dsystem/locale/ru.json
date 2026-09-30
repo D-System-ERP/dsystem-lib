@@ -33,5 +33,6 @@
   "currency.not_enabled": "Валюта {currency_code} не включена в настройках организации",
   "report.total": "Итого",
   "report.generated_at": "Выгружено {at}",
-  "report.truncated": "только первые {limit} строк"
+  "report.truncated": "только первые {limit} строк",
+  "report.page": "Стр. {page} из {pages}"
 }
