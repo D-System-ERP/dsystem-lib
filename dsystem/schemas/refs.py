@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import types
 import typing
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from typing import Any
@@ -63,6 +63,7 @@ class InlineName:
 class Source:
     model: Any
     options: tuple = ()
+    build: Callable[[Any], BaseModel] | None = None
 
 
 REPLICA_SOURCES: dict[type[BaseModel], Any] = {
@@ -211,7 +212,8 @@ async def resolve_inline(session: AsyncSession, value, sources: Mapping[type[Bas
             continue
         spec = _source(brief, sources)
         rows = await session.scalars(select(spec.model).where(spec.model.id.in_(ids)).options(*spec.options))
-        found[brief] = {row.id: brief.model_validate(row) for row in rows}
+        build = spec.build or brief.model_validate
+        found[brief] = {row.id: build(row) for row in rows}
     _walk(value, lambda item, plan: _fill(item, plan, found))
     return value
 

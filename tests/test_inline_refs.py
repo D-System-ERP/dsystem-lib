@@ -14,6 +14,7 @@ from dsystem.schemas.refs import (
     Inline,
     InlineName,
     PartnerBrief,
+    Source,
     UserBrief,
     has_inline,
     resolve_inline,
@@ -193,3 +194,15 @@ async def test_a_polymorphic_link_is_named_by_its_type():
     assert [link.target_name for link in links] == ["Acme", "a@x.uz", None, None]
     assert sorted(session.queries) == ["partner_replicas", "user_replicas"]
     assert stored_fields(LinkRead) == ["target_type", "target_id"]
+
+
+async def test_a_source_can_build_its_brief():
+    p1 = uuid4()
+    session = FakeSession([partner(p1, "acme")])
+
+    def upper(row):
+        return PartnerBrief(id=row.id, code=row.code, name=row.name.upper())
+
+    doc = DocRead(partner_id=p1, created_by_id=None, assignee_ids=[])
+    await resolve_inline(session, doc, {PartnerBrief: Source(PartnerReplica, build=upper)})
+    assert doc.partner.name == "ACME"
