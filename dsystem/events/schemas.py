@@ -61,8 +61,15 @@ class OrganizationV1(EventPayload):
     require_barcode_scan: bool = False
     enforce_min_price: bool = False
     enforce_credit_limit: bool = False
+    balance_trigger: str = "invoice"
     settings: dict[str, Any] = Field(default_factory=dict)
     is_active: bool = True
+
+
+class OrganizationBalanceTriggerChangedV1(EventPayload):
+    organization_id: UUID
+    balance_trigger: str
+    previous: str
 
 
 class BankAccountV1(EventPayload):
@@ -687,6 +694,7 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "user.session_revoked": UserSessionRevokedV1,
     "organization.created": OrganizationV1,
     "organization.updated": OrganizationV1,
+    "organization.balance_trigger_changed": OrganizationBalanceTriggerChangedV1,
     "legal_entity.created": LegalEntityV1,
     "legal_entity.updated": LegalEntityV1,
     "legal_entity.deleted": LegalEntityDeletedV1,
