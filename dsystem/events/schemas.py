@@ -247,6 +247,7 @@ class WarehouseV1(EventPayload):
     parent_id: UUID | None = None
     is_group: bool = False
     is_active: bool = True
+    staff_user_ids: list[UUID] = Field(default_factory=list)
 
 
 class WarehouseDeletedV1(EventPayload):
