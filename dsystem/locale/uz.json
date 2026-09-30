@@ -30,5 +30,8 @@
   "validation.invalid_value": "{field}: {reason}",
   "idempotency.key_reused": "Idempotency-Key boshqa so'rov tanasi bilan ishlatilgan",
   "idempotency.in_progress": "Xuddi shu so'rov hali bajarilmoqda",
-  "currency.not_enabled": "{currency_code} valyutasi tashkilot sozlamalarida yoqilmagan"
+  "currency.not_enabled": "{currency_code} valyutasi tashkilot sozlamalarida yoqilmagan",
+  "report.total": "Jami",
+  "report.generated_at": "Yuklab olindi: {at}",
+  "report.truncated": "faqat birinchi {limit} qator"
 }

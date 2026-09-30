@@ -30,5 +30,8 @@
   "validation.invalid_value": "{field}: {reason}",
   "idempotency.key_reused": "Idempotency-Key was already used with a different payload",
   "idempotency.in_progress": "The same request is still being processed",
-  "currency.not_enabled": "{currency_code} is not enabled in the organization settings"
+  "currency.not_enabled": "{currency_code} is not enabled in the organization settings",
+  "report.total": "Total",
+  "report.generated_at": "Downloaded {at}",
+  "report.truncated": "first {limit} rows only"
 }

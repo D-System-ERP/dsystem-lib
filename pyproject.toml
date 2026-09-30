@@ -18,10 +18,11 @@ dependencies = [
     "python-multipart>=0.0.12",
     "phonenumbers>=8.13.0",
     "sentry-sdk[fastapi]>=2.20.0",
+    "xlsxwriter>=3.2.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "openpyxl>=3.1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["dsystem"]

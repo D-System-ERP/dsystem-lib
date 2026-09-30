@@ -30,5 +30,8 @@
   "validation.invalid_value": "{field}: {reason}",
   "idempotency.key_reused": "Idempotency-Key уже использован с другим телом запроса",
   "idempotency.in_progress": "Такой же запрос ещё обрабатывается",
-  "currency.not_enabled": "Валюта {currency_code} не включена в настройках организации"
+  "currency.not_enabled": "Валюта {currency_code} не включена в настройках организации",
+  "report.total": "Итого",
+  "report.generated_at": "Выгружено {at}",
+  "report.truncated": "только первые {limit} строк"
 }
