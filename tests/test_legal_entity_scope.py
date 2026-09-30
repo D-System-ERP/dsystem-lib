@@ -10,7 +10,7 @@ from dsystem.role_templates import TEMPLATES
 A, B, C = uuid4(), uuid4(), uuid4()
 
 
-def _user(*, view: str | None = None, les: tuple = (), le=None, superuser: bool = False) -> TokenPayload:
+def _user(*, view: str | None = None, les: tuple = (), le=None, act=None, superuser: bool = False) -> TokenPayload:
     permissions = {"legal_entity": {"view": view}} if view else {}
     return TokenPayload(
         user_id=uuid4(),
@@ -21,6 +21,7 @@ def _user(*, view: str | None = None, les: tuple = (), le=None, superuser: bool 
         permissions=permissions,
         default_legal_entity_id=le,
         legal_entity_ids=les,
+        active_legal_entity_id=act,
     )
 
 
@@ -151,3 +152,26 @@ async def test_get_current_user_installs_the_callers_scope(monkeypatch):
         assert current_legal_entity_scope().as_filter() == [A]
     finally:
         set_legal_entity_scope(UNRESTRICTED)
+
+
+def test_member_switched_to_one_legal_entity_lists_only_it():
+    scope = scope_for(_user(view="own", les=(A, B), le=A, act=B))
+    assert scope.as_filter() == [B]
+    assert scope.permitted_filter() == [A, B]
+    assert scope.resolve(None) == B
+    assert scope.allows(A)
+
+
+def test_member_switch_to_a_revoked_legal_entity_falls_back_to_all():
+    scope = scope_for(_user(view="own", les=(A, B), le=A, act=C))
+    assert scope.active_id is None
+    assert scope.as_filter() == [A, B]
+    assert scope.resolve(None) == A
+
+
+def test_admin_switched_to_one_legal_entity_keeps_org_wide_rights():
+    scope = scope_for(_user(view="all", le=A, act=C))
+    assert scope.as_filter() == [C]
+    assert scope.permitted_filter() is None
+    assert scope.resolve(None) == C
+    scope.require_everything()

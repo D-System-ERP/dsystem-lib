@@ -34,6 +34,7 @@ class TokenPayload:
     # The legal entity documents default to (users.default_legal_entity_id).
     default_legal_entity_id: UUID | None = None
     legal_entity_ids: tuple[UUID, ...] = ()
+    active_legal_entity_id: UUID | None = None
     email: str | None = None
 
 
@@ -131,6 +132,7 @@ async def get_current_user(
         otz=payload.get("otz"),
         default_legal_entity_id=_uuid_or_none(payload.get("le")),
         legal_entity_ids=tuple(UUID(value) for value in payload.get("les") or ()),
+        active_legal_entity_id=_uuid_or_none(payload.get("act")),
         email=payload.get("email"),
     )
 

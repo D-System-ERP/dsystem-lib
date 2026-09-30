@@ -17,11 +17,15 @@ class LegalEntityScope:
     scope is ``all`` (the organization's Admin by default). Everyone else gets the
     ids minted into the token as ``les``; an empty tuple is a real answer — an
     account nobody put on a legal entity sees nothing.
+
+    ``active_id`` is the legal entity the caller switched to (token claim ``act``):
+    lists narrow to it and new rows default to it. ``None`` means "all of mine".
     """
 
     everything: bool
     legal_entity_ids: tuple[UUID, ...] = ()
     default_id: UUID | None = None
+    active_id: UUID | None = None
 
     @property
     def sees_nothing(self) -> bool:
@@ -31,6 +35,13 @@ class LegalEntityScope:
         return self.everything or (legal_entity_id is not None and legal_entity_id in self.legal_entity_ids)
 
     def as_filter(self) -> list[UUID] | None:
+        """What lists show: the active legal entity when one is picked, else every permitted one."""
+        if self.active_id is not None:
+            return [self.active_id]
+        return self.permitted_filter()
+
+    def permitted_filter(self) -> list[UUID] | None:
+        """Every legal entity the caller may see, ignoring the switcher — pickers and the legal entity registry."""
         return None if self.everything else list(self.legal_entity_ids)
 
     def ensure(self, legal_entity_id: UUID | None, key: str = "common.not_found") -> None:
@@ -59,10 +70,20 @@ UNRESTRICTED = LegalEntityScope(everything=True)
 
 def scope_for(user) -> LegalEntityScope:
     resource, action, scope = SEES_EVERY_LEGAL_ENTITY
+    active_id = getattr(user, "active_legal_entity_id", None)
     if user.is_superuser or user.permissions.get(resource, {}).get(action) == scope:
-        return LegalEntityScope(everything=True, default_id=user.default_legal_entity_id)
+        return LegalEntityScope(
+            everything=True, default_id=active_id or user.default_legal_entity_id, active_id=active_id
+        )
+    if active_id not in user.legal_entity_ids:
+        active_id = None
     default_id = user.default_legal_entity_id if user.default_legal_entity_id in user.legal_entity_ids else None
-    return LegalEntityScope(everything=False, legal_entity_ids=user.legal_entity_ids, default_id=default_id)
+    return LegalEntityScope(
+        everything=False,
+        legal_entity_ids=user.legal_entity_ids,
+        default_id=active_id or default_id,
+        active_id=active_id,
+    )
 
 
 _current: ContextVar[LegalEntityScope] = ContextVar("legal_entity_scope", default=UNRESTRICTED)
