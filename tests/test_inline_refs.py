@@ -10,7 +10,15 @@ from dsystem.models.partner_replica import PartnerReplica
 from dsystem.models.user_replica import UserReplica
 from dsystem.routes.inline import inline_route
 from dsystem.schemas.base import AppSchema
-from dsystem.schemas.refs import Inline, PartnerBrief, UserBrief, has_inline, resolve_inline
+from dsystem.schemas.refs import (
+    Inline,
+    InlineName,
+    PartnerBrief,
+    UserBrief,
+    has_inline,
+    resolve_inline,
+    stored_fields,
+)
 
 
 class FakeSession:
@@ -155,3 +163,33 @@ def test_openapi_shows_objects_and_hides_the_session():
     assert [p["name"] for p in params] == ["pid"]
     doc = schema["components"]["schemas"]["DocRead"]["properties"]
     assert "partner" in doc and "assignees" in doc
+
+
+def test_stored_fields_leave_out_inline_objects():
+    assert stored_fields(DocRead) == ["partner_id", "created_by_id", "assignee_ids", "lines"]
+
+
+class LinkRead(AppSchema):
+    target_type: str
+    target_id: UUID
+    target_name: Annotated[
+        str | None,
+        InlineName(
+            "target_id", by="target_type", briefs={"partner": (PartnerBrief, "name"), "user": (UserBrief, "email")}
+        ),
+    ] = None
+
+
+async def test_a_polymorphic_link_is_named_by_its_type():
+    p1, u1 = uuid4(), uuid4()
+    session = FakeSession([partner(p1), user(u1)])
+    links = [
+        LinkRead(target_type="partner", target_id=p1),
+        LinkRead(target_type="user", target_id=u1),
+        LinkRead(target_type="document", target_id=uuid4()),
+        LinkRead(target_type="partner", target_id=uuid4()),
+    ]
+    await resolve_inline(session, links)
+    assert [link.target_name for link in links] == ["Acme", "a@x.uz", None, None]
+    assert sorted(session.queries) == ["partner_replicas", "user_replicas"]
+    assert stored_fields(LinkRead) == ["target_type", "target_id"]
