@@ -120,3 +120,13 @@ def test_content_disposition_keeps_non_ascii_names():
 def test_attachment_flags_truncation_only_when_cut():
     assert TRUNCATED_HEADER not in attachment(b"x", "a.xlsx", XLSX_MEDIA_TYPE).headers
     assert attachment(b"x", "a.xlsx", XLSX_MEDIA_TYPE, truncated=True).headers[TRUNCATED_HEADER] == "true"
+
+
+def test_columns_widen_to_fit_large_amounts_and_cap_long_text():
+    columns = (Column("partner", 20), Column("total", 16, MONEY, total=True))
+    rows = [("x" * 200, Decimal("3914224450360.00"))] * 3
+    book = load_workbook(BytesIO(workbook_bytes(_sheet(rows, columns=columns))))
+    widths = {letter: dim.width for letter, dim in book.active.column_dimensions.items()}
+
+    assert 60 <= widths["A"] < 62
+    assert widths["B"] >= len("11,742,673,351,080.00")
