@@ -103,3 +103,13 @@ def test_stock_moved_decimals_survive_round_trip():
     )
     checked = validate_payload("stock.moved", payload)
     assert checked.quantity == Decimal("10.5") and checked.unit_cost == Decimal("2.333333")
+
+
+def test_notification_carries_translation_keys_and_stays_readable_without_them():
+    base = {"id": str(uuid4()), "organization_id": str(uuid4()), "title": "SA-1 confirmed", "kind": "document"}
+    plain = validate_payload("notification.created", base)
+    assert plain.title_key is None and plain.params == {}
+    keyed = validate_payload(
+        "notification.created", {**base, "title_key": "notification.document.confirmed", "params": {"code": "SA-1"}}
+    )
+    assert keyed.title_key == "notification.document.confirmed" and keyed.params == {"code": "SA-1"}

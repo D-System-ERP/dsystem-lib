@@ -182,6 +182,9 @@ class NotificationCreatedV1(EventPayload):
     organization_id: UUID
     title: str
     body: str | None = None
+    title_key: str | None = None
+    body_key: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
     kind: str
     target_type: str | None = None
     target_id: UUID | None = None
