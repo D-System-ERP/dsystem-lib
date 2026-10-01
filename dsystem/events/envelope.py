@@ -6,7 +6,7 @@ dedupe, attribute and version-check before it looks at the domain payload::
     {"v": 1, "event_id": "...", "organization_id": "...", "occurred_at": "...", "actor_id": "...", "data": {...}}
 
 ``event_id`` is stamped by the outbox at delivery time (it is the outbox row id,
-identical on every redelivery), which is what makes ``claim_once`` reliable.
+identical on every redelivery), which is what the consumers' ``processed_events`` inbox keys on.
 """
 
 from __future__ import annotations

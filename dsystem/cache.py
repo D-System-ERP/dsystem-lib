@@ -76,11 +76,13 @@ async def cache_set_many(
     ttl: int = 300,
     *,
     serialize: Callable[[Any], str] = _default_serialize,
+    strict: bool = False,
 ) -> None:
     """Write many keys in one round trip.
 
     A role reassignment stamps every touched user; issued one ``SETEX`` at a
     time that is one network round trip per user, inside the request.
+    ``strict`` re-raises a failed write — for keys whose loss is a security hole (token revocation).
     """
     if not entries:
         return
@@ -92,6 +94,8 @@ async def cache_set_many(
         await pipe.execute()
     except Exception as exc:
         log.warning("cache_set_many_failed keys=%d err=%s", len(entries), exc)
+        if strict:
+            raise
 
 
 async def cache_get(key: str) -> str | None:
@@ -102,13 +106,11 @@ async def cache_get(key: str) -> str | None:
         return None
 
 
-async def claim_once(key: str, ttl: int = 7 * 24 * 3600, *, namespace: str = "evt") -> bool:
+async def claim_once(key: str, ttl: int = 24 * 3600, *, namespace: str = "evt") -> bool:
     """Atomically claim ``key`` for ``ttl`` seconds; ``False`` when it was already claimed.
 
-    The event-consumer dedupe primitive: the outbox stamps every message with a
-    stable ``event_id``, so the second delivery of the same event loses the
-    claim and is dropped. Fails open (returns ``True``) when Redis is unreachable —
-    a duplicate is safer than a lost event, and handlers are idempotent anyway.
+    Keeps a scheduled job to one run per period across beat restarts. Fails open (returns ``True``) when Redis is
+    unreachable — those jobs are idempotent. Event consumers dedupe in the database instead (``events.inbox``).
     """
     try:
         redis = await get_redis()
@@ -116,20 +118,3 @@ async def claim_once(key: str, ttl: int = 7 * 24 * 3600, *, namespace: str = "ev
     except Exception as exc:
         log.warning("claim_once_failed key=%s err=%s", key, exc)
         return True
-
-
-async def release_claim(key: str, *, namespace: str = "evt") -> None:
-    """Give back a ``claim_once`` claim after the handler failed, so the redelivery (or DLQ replay) is processed."""
-    await cache_invalidate(f"{namespace}:{key}")
-
-
-async def run_claimed(key: str | None, namespace: str, handler, *args) -> None:
-    """Run ``handler(*args)`` once per ``key``; a raising handler releases the claim before re-raising."""
-    if key and not await claim_once(key, namespace=namespace):
-        return
-    try:
-        await handler(*args)
-    except Exception:
-        if key:
-            await release_claim(key, namespace=namespace)
-        raise

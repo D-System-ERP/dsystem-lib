@@ -70,13 +70,6 @@ class FakeSessionFactory:
         return FakeSession()
 
 
-async def test_release_claim_lets_the_key_be_claimed_again(redis):
-    assert await cache.claim_once("e1", namespace="q") is True
-    assert await cache.claim_once("e1", namespace="q") is False
-    await cache.release_claim("e1", namespace="q")
-    assert await cache.claim_once("e1", namespace="q") is True
-
-
 async def test_user_sync_retries_a_failed_event(redis, monkeypatch):
     calls = []
 
@@ -118,3 +111,13 @@ async def test_replica_consumer_retries_a_failed_event(redis, monkeypatch):
     await dispatch("legal_entity.updated", body)
     await dispatch("legal_entity.updated", body)
     assert calls == ["le1", "le1"]
+
+
+async def test_a_strict_bulk_write_raises_when_redis_is_down(monkeypatch):
+    async def _down():
+        raise ConnectionError("redis down")
+
+    monkeypatch.setattr(cache, "get_redis", _down)
+    await cache.cache_set_many({"k": 1})
+    with pytest.raises(ConnectionError):
+        await cache.cache_set_many({"k": 1}, strict=True)

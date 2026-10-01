@@ -29,7 +29,7 @@ async def start_consumer(
     (``requeue_failed``), and a second failure routes it to ``<queue_name>-dlq``
     on the ``dsystem.events.dlq`` exchange (``dead_letter``) instead of dropping
     it, so nothing is lost silently and the admin panel can replay it. Handlers
-    therefore must be idempotent — dedupe by ``event_id`` with ``claim_once``.
+    therefore must be idempotent — dedupe by ``event_id`` with ``events.inbox.run_once``.
     """
     connection = await aio_pika.connect_robust(rabbitmq_url)
     channel = await connection.channel()
