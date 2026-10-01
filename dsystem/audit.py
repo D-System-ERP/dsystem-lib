@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 from datetime import date, datetime, time
@@ -326,7 +327,7 @@ async def _publish_one(payload: dict[str, Any]) -> None:
         logger.exception("audit publish failed: routing_key=%s", routing_key)
 
 
-async def _resolve_refs(session_maker, staged: list[dict[str, Any]]) -> None:
+def _wanted_refs(staged: list[dict[str, Any]]) -> dict[type, set[str]]:
     by_class: dict[type, set[str]] = {}
     for payload in staged:
         for ref in payload.get("_pending_refs", []):
@@ -335,28 +336,17 @@ async def _resolve_refs(session_maker, staged: list[dict[str, Any]]) -> None:
                 uuids.add(ref["old_id"])
             if ref["new_id"]:
                 uuids.add(ref["new_id"])
-    if not by_class:
-        return
+    return {cls: uuids for cls, uuids in by_class.items() if uuids}
 
-    labels: dict[tuple[type, str], str] = {}
-    async with session_maker() as session:
-        for cls, uuids in by_class.items():
-            if not uuids:
-                continue
-            try:
-                rows = (
-                    (await session.execute(select(cls).where(cls.id.in_(uuids)).options(raiseload("*"))))
-                    .scalars()
-                    .all()
-                )
-            except Exception:
-                logger.exception("audit label lookup failed for class=%s", cls.__name__)
-                continue
-            for row in rows:
-                lbl = _resolve_row_label(row)
-                if lbl:
-                    labels[(cls, str(row.id))] = lbl[:200]
 
+def _label_rows(labels: dict[tuple[type, str], str], cls: type, rows) -> None:
+    for row in rows:
+        lbl = _resolve_row_label(row)
+        if lbl:
+            labels[(cls, str(row.id))] = lbl[:200]
+
+
+def _apply_labels(staged: list[dict[str, Any]], labels: dict[tuple[type, str], str]) -> None:
     for payload in staged:
         for ref in payload.get("_pending_refs", []):
             rel = ref["rel_name"]
@@ -370,6 +360,67 @@ async def _resolve_refs(session_maker, staged: list[dict[str, Any]]) -> None:
                     payload["new_data"][rel] = lbl
 
 
+async def _resolve_refs(session_maker, staged: list[dict[str, Any]]) -> None:
+    labels: dict[tuple[type, str], str] = {}
+    by_class = _wanted_refs(staged)
+    if not by_class:
+        return
+    async with session_maker() as session:
+        for cls, uuids in by_class.items():
+            try:
+                rows = (
+                    (await session.execute(select(cls).where(cls.id.in_(uuids)).options(raiseload("*"))))
+                    .scalars()
+                    .all()
+                )
+            except Exception:
+                logger.exception("audit label lookup failed for class=%s", cls.__name__)
+                continue
+            _label_rows(labels, cls, rows)
+    _apply_labels(staged, labels)
+
+
+def _resolve_refs_in(session, staged: list[dict[str, Any]]) -> None:
+    labels: dict[tuple[type, str], str] = {}
+    for cls, uuids in _wanted_refs(staged).items():
+        try:
+            with session.no_autoflush:
+                rows = session.execute(select(cls).where(cls.id.in_(uuids)).options(raiseload("*"))).scalars().all()
+        except Exception:
+            logger.exception("audit label lookup failed for class=%s", cls.__name__)
+            continue
+        _label_rows(labels, cls, rows)
+    _apply_labels(staged, labels)
+
+
+def _assign_uuid(obj: Any) -> None:
+    if getattr(obj, "id", None) is not None:
+        return
+    column = sa_inspect(type(obj)).columns.get("id")
+    if column is not None and column.default is not None and getattr(column.default, "arg", None) is not None:
+        try:
+            python_type = column.type.python_type
+        except NotImplementedError:
+            return
+        if python_type is UUID:
+            obj.id = uuid4()
+
+
+def _json_safe_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return json.loads(json.dumps(payload, default=str))
+
+
+def _stage_in_outbox(session, staged: list[dict[str, Any]]) -> None:
+    from dsystem.events.outbox import OutboxEvent, stage_row
+
+    for payload in staged:
+        payload.pop("_pending_refs", None)
+        routing_key = f"audit.{payload['service']}.{payload['action']}"
+        row = OutboxEvent(routing_key=routing_key, payload=_json_safe_payload(payload), status="pending")
+        session.add(row)
+        stage_row(session, row)
+
+
 async def _resolve_and_publish(session_maker, staged: list[dict[str, Any]]) -> None:
     if session_maker is not None:
         try:
@@ -380,7 +431,7 @@ async def _resolve_and_publish(session_maker, staged: list[dict[str, Any]]) -> N
         await _publish_one(payload)
 
 
-def register_audit_listeners(session_class, session_maker=None) -> None:
+def register_audit_listeners(session_class, session_maker=None, *, outbox: bool = True) -> None:
 
     @event.listens_for(session_class, "before_flush")
     def _capture(session, flush_context, instances):
@@ -388,6 +439,7 @@ def register_audit_listeners(session_class, session_maker=None) -> None:
         try:
             for obj in session.new:
                 if isinstance(obj, Auditable):
+                    _assign_uuid(obj)
                     staged.append(_build_payload("create", obj, None, _snapshot(obj), None))
             for obj in session.dirty:
                 if isinstance(obj, Auditable):
@@ -399,6 +451,20 @@ def register_audit_listeners(session_class, session_maker=None) -> None:
                     staged.append(_build_payload("delete", obj, _snapshot(obj), None, None))
         except Exception:
             logger.exception("audit capture failed; audit events may be missing")
+
+    @event.listens_for(session_class, "before_commit")
+    def _into_outbox(session):
+        if not outbox:
+            return
+        try:
+            session.flush()
+            staged = session.info.pop(_PENDING_KEY, [])
+            if not staged:
+                return
+            _resolve_refs_in(session, staged)
+            _stage_in_outbox(session, staged)
+        except Exception:
+            logger.exception("audit outbox staging failed; audit events of this commit are lost")
 
     @event.listens_for(session_class, "after_commit")
     def _publish(session):

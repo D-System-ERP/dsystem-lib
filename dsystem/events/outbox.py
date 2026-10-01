@@ -95,7 +95,12 @@ def publish_event(
         )
     row = OutboxEvent(routing_key=routing_key, payload=body, status="pending")
     db.add(row)
-    db.sync_session.info.setdefault(_OUTBOX_KEY, []).append(row)
+    stage_row(db.sync_session, row)
+
+
+def stage_row(session, row: "OutboxEvent") -> None:
+    """Queue an added row for the publish right after commit (the relay is the fallback)."""
+    session.info.setdefault(_OUTBOX_KEY, []).append(row)
 
 
 async def _mark_published(session_factory, event_id) -> None:
@@ -128,6 +133,12 @@ async def _publish_one(session_factory, event_id, routing_key: str, payload: dic
         raise
     except Exception:
         logger.exception("outbox mark-published failed for %s (relay will republish it)", event_id)
+
+
+async def drain_publishes() -> None:
+    """Wait for the publishes started after commits — tests call it so no publish outlives its event loop."""
+    while _INFLIGHT:
+        await asyncio.gather(*list(_INFLIGHT), return_exceptions=True)
 
 
 def register_outbox_listeners(session_class, session_factory) -> None:
