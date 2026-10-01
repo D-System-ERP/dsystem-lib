@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -18,11 +19,21 @@ from sqlalchemy import Numeric, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.sqltypes import Uuid
 
-from dsystem.cache import run_claimed
 from dsystem.events.consumer import start_consumer
 from dsystem.events.envelope import unwrap
+from dsystem.events.inbox import event_time, run_once
 
 logger = logging.getLogger(__name__)
+
+
+def _stale(row, version: datetime | None) -> bool:
+    current = getattr(row, "source_updated_at", None)
+    return version is not None and current is not None and version < current
+
+
+def _stamp(row, version: datetime | None) -> None:
+    if version is not None and hasattr(row, "source_updated_at"):
+        row.source_updated_at = version
 
 
 class ReplicaSync:
@@ -51,27 +62,35 @@ class ReplicaSync:
         if not data.get("id") or not data.get("organization_id"):
             return
         row_id = UUID(str(data["id"]))
-        row = (await session.execute(select(self.model).where(self.model.id == row_id))).scalar_one_or_none()
+        row = (
+            await session.execute(select(self.model).where(self.model.id == row_id).with_for_update())
+        ).scalar_one_or_none()
         values = self.values(data)
+        version = event_time()
         if row is None:
             row = self.model(id=row_id, organization_id=UUID(str(data["organization_id"])), **values)
+            _stamp(row, version)
             session.add(row)
+            return
+        if _stale(row, version):
             return
         for field, value in values.items():
             setattr(row, field, value)
         if self.soft_delete and hasattr(row, "is_deleted"):
             row.is_deleted = False
+        _stamp(row, version)
 
     async def delete(self, session: AsyncSession, data: dict) -> None:
         if not data.get("id"):
             return
         row = (
-            await session.execute(select(self.model).where(self.model.id == UUID(str(data["id"]))))
+            await session.execute(select(self.model).where(self.model.id == UUID(str(data["id"]))).with_for_update())
         ).scalar_one_or_none()
-        if row is None:
+        if row is None or _stale(row, event_time()):
             return
         if self.soft_delete and hasattr(row, "is_deleted"):
             row.is_deleted = True
+            _stamp(row, event_time())
         else:
             await session.delete(row)
 
@@ -96,13 +115,7 @@ async def run_replica_consumer(
         if handler is None:
             return
         data, meta = unwrap(body, routing_key)
-
-        async def run():
-            async with session_factory() as session:
-                await handler(session, data)
-                await session.commit()
-
-        await run_claimed(meta.event_id, queue_name, run)
+        await run_once(session_factory, queue_name, meta.event_id, handler, data, occurred_at=meta.occurred_at)
 
     return await start_consumer(
         rabbitmq_url=rabbitmq_url,

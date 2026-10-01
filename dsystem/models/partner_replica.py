@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -39,6 +40,7 @@ class PartnerReplica(ReferenceModel):
     addresses: Mapped[list | None] = mapped_column(JSONB)
     bank_accounts: Mapped[list | None] = mapped_column(JSONB)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_updated_at: Mapped[datetime | None]
 
 
 PARTNER_REPLICA_FIELDS: tuple[str, ...] = (

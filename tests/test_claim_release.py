@@ -1,9 +1,9 @@
-"""A consumer that fails must release its ``claim_once`` key, or the redelivery is silently dropped."""
+"""A consumer that fails must leave no claim behind, or the redelivery is silently dropped."""
 
 import pytest
 
 from dsystem import cache
-from dsystem.events import replica_sync, user_sync
+from dsystem.events import inbox, replica_sync, user_sync
 from dsystem.events.envelope import build_envelope
 
 
@@ -23,29 +23,51 @@ class FakeRedis:
         return len(keys)
 
 
+PROCESSED: set[tuple[str, str]] = set()
+
+
 @pytest.fixture
 def redis(monkeypatch):
     fake = FakeRedis()
+    PROCESSED.clear()
 
     async def _get_redis():
         return fake
 
+    async def _first_delivery(session, consumer, event_id):
+        key = (consumer, str(event_id))
+        if key in PROCESSED or key in session.pending:
+            return False
+        session.pending.add(key)
+        return True
+
     monkeypatch.setattr(cache, "get_redis", _get_redis)
+    monkeypatch.setattr(inbox, "first_delivery", _first_delivery)
     return fake
 
 
-class FakeSessionFactory:
-    def __call__(self):
-        return self
+class FakeSession:
+    def __init__(self):
+        self.pending: set[tuple[str, str]] = set()
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, *exc):
+        self.pending.clear()
         return False
 
     async def commit(self):
-        return None
+        PROCESSED.update(self.pending)
+        self.pending.clear()
+
+    async def rollback(self):
+        self.pending.clear()
+
+
+class FakeSessionFactory:
+    def __call__(self):
+        return FakeSession()
 
 
 async def test_release_claim_lets_the_key_be_claimed_again(redis):

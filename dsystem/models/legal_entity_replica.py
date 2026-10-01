@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Boolean, String
@@ -28,6 +29,7 @@ class LegalEntityReplica(ReferenceModel):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     bank_accounts: Mapped[list | None] = mapped_column(JSONB)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_updated_at: Mapped[datetime | None]
 
 
 LEGAL_ENTITY_REPLICA_FIELDS: tuple[str, ...] = (

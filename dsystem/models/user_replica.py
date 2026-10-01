@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Boolean, String
@@ -20,6 +21,8 @@ class UserReplica(ReferenceModel):
     team_id: Mapped[UUID | None] = mapped_column(index=True)
     default_legal_entity_id: Mapped[UUID | None]
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    deleted_at: Mapped[datetime | None]
+    source_updated_at: Mapped[datetime | None]
 
     @property
     def full_name(self) -> str:

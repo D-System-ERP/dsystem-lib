@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from dsystem.context import get_audit_context
 from dsystem.events import publisher
 from dsystem.events.envelope import build_envelope, is_envelope
+from dsystem.events.inbox import prune_processed
 from dsystem.models.base import BaseModel
 from dsystem.observability import set_outbox_pending
 from dsystem.utils.timezone import utc_now
@@ -259,6 +260,7 @@ async def run_outbox_relay(
     *,
     interval: float = RELAY_INTERVAL_SECONDS,
     stop_event: asyncio.Event | None = None,
+    prune_inbox: bool = False,
 ) -> None:
     logger.info("outbox relay loop started (interval=%.1fs)", interval)
     tick = 0
@@ -271,6 +273,10 @@ async def run_outbox_relay(
                 deleted = await cleanup_published(session_factory)
                 if deleted:
                     logger.info("outbox cleanup deleted %d published rows", deleted)
+                if prune_inbox:
+                    pruned = await prune_processed(session_factory)
+                    if pruned:
+                        logger.info("inbox cleanup deleted %d processed events", pruned)
         except Exception:
             logger.exception("outbox relay tick failed")
         tick += 1
