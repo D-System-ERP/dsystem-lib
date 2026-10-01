@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsystem.context import get_audit_context
 from dsystem.models.legal_entity_replica import LegalEntityReplica
 from dsystem.models.partner_replica import PartnerReplica
 from dsystem.models.user_replica import UserReplica
@@ -206,12 +207,16 @@ async def resolve_inline(session: AsyncSession, value, sources: Mapping[type[Bas
         _walk(value, lambda item, plan: _fill(item, plan, {}))
         return value
     found: dict[type[BaseModel], dict[UUID, BaseModel]] = {}
+    organization_id = get_audit_context().organization_id
     for brief, ids in wanted.items():
         if not ids:
             found[brief] = {}
             continue
         spec = _source(brief, sources)
-        rows = await session.scalars(select(spec.model).where(spec.model.id.in_(ids)).options(*spec.options))
+        stmt = select(spec.model).where(spec.model.id.in_(ids))
+        if organization_id is not None and hasattr(spec.model, "organization_id"):
+            stmt = stmt.where(spec.model.organization_id == organization_id)
+        rows = await session.scalars(stmt.options(*spec.options))
         build = spec.build or brief.model_validate
         found[brief] = {row.id: build(row) for row in rows}
     _walk(value, lambda item, plan: _fill(item, plan, found))
