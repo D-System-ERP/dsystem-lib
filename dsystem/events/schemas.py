@@ -384,6 +384,7 @@ class OpportunityV1(EventPayload):
     source_id: UUID | None = None
     source_name: str | None = None
     project_id: UUID | None = None
+    legal_entity_id: UUID | None = None
     status: str = "open"
 
 
