@@ -255,6 +255,7 @@ class WarehouseV1(EventPayload):
     is_group: bool = False
     is_active: bool = True
     staff_user_ids: list[UUID] = Field(default_factory=list)
+    legal_entity_ids: list[UUID] = Field(default_factory=list)
 
 
 class WarehouseDeletedV1(EventPayload):
