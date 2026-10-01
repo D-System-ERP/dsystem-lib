@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from dsystem.clients.service import RemoteServiceError
 from dsystem.exceptions import AppException
 from dsystem.i18n import bind_locale_dir, get_language, translate
 from dsystem.observability import capture_exception as _sentry_capture
@@ -149,19 +150,32 @@ def _upstream_target(exc: httpx.HTTPError) -> str:
         return "upstream"
 
 
+def _mirrored_envelope(status_code: int, body: dict | None, detail: str, lang: str) -> dict:
+    if isinstance(body, dict) and isinstance(body.get("code"), str) and isinstance(body.get("key"), str):
+        params = body.get("params") if isinstance(body.get("params"), dict) else {}
+        upstream_message = body.get("message") if isinstance(body.get("message"), str) else detail
+        envelope = _envelope(body["code"], body["key"], lang, params, upstream_message)
+        if isinstance(body.get("errors"), list):
+            envelope["errors"] = body["errors"]
+        return envelope
+    return _envelope(f"HTTP_{status_code}", f"common.http_{status_code}", lang, {}, detail)
+
+
+def _response_body(response: httpx.Response) -> dict | None:
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    return body if isinstance(body, dict) else None
+
+
 async def upstream_exception_handler(request: Request, exc: httpx.HTTPError) -> JSONResponse:
     lang = get_language(request)
     response = getattr(exc, "response", None)
     upstream_status = response.status_code if response is not None else None
 
     if upstream_status in _MIRRORED_UPSTREAM_STATUSES:
-        envelope = _envelope(
-            f"HTTP_{upstream_status}",
-            f"common.http_{upstream_status}",
-            lang,
-            {},
-            _upstream_detail(response),
-        )
+        envelope = _mirrored_envelope(upstream_status, _response_body(response), _upstream_detail(response), lang)
         return JSONResponse(status_code=upstream_status, content=envelope)
 
     _sentry_capture(exc)
@@ -171,6 +185,23 @@ async def upstream_exception_handler(request: Request, exc: httpx.HTTPError) -> 
         "common.upstream_unavailable",
         lang,
         {"service": _upstream_target(exc)},
+        "Upstream service is unavailable",
+    )
+    return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content=envelope)
+
+
+async def remote_service_exception_handler(request: Request, exc: RemoteServiceError) -> JSONResponse:
+    lang = get_language(request)
+    if exc.status_code in _MIRRORED_UPSTREAM_STATUSES:
+        envelope = _mirrored_envelope(exc.status_code, exc.body, exc.detail, lang)
+        return JSONResponse(status_code=exc.status_code, content=envelope)
+    _sentry_capture(exc)
+    _log.error("Upstream call from %s %s failed: %s", request.method, request.url.path, exc)
+    envelope = _envelope(
+        "UPSTREAM_UNAVAILABLE",
+        "common.upstream_unavailable",
+        lang,
+        {"service": exc.service},
         "Upstream service is unavailable",
     )
     return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content=envelope)
@@ -254,5 +285,6 @@ def register_handlers(app: FastAPI, locale_dir: Path | str | None = None) -> Non
     app.add_exception_handler(AppException, app_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(httpx.HTTPError, upstream_exception_handler)
+    app.add_exception_handler(RemoteServiceError, remote_service_exception_handler)
     app.add_exception_handler(IntegrityError, integrity_exception_handler)
     app.add_exception_handler(Exception, fallback_handler)

@@ -12,10 +12,11 @@ def _ambient_secret() -> str:
 
 
 class RemoteServiceError(RuntimeError):
-    def __init__(self, service: str, status_code: int | None, detail: str) -> None:
+    def __init__(self, service: str, status_code: int | None, detail: str, body: dict | None = None) -> None:
         self.service = service
         self.status_code = status_code
         self.detail = detail
+        self.body = body
         super().__init__(f"{service} responded {status_code}: {detail}")
 
 
@@ -35,12 +36,15 @@ class ServiceClient:
     def _raise(self, resp: "httpx.Response") -> None:
         if resp.status_code < 400:
             return
+        body = None
         try:
-            body = resp.json()
-            detail = body.get("message") or body.get("detail") or str(body)
+            parsed = resp.json()
         except ValueError:
             detail = resp.text[:300]
-        raise RemoteServiceError(self.base_url, resp.status_code, str(detail))
+        else:
+            body = parsed if isinstance(parsed, dict) else None
+            detail = (body or {}).get("message") or (body or {}).get("detail") or str(parsed)
+        raise RemoteServiceError(self.base_url, resp.status_code, str(detail), body)
 
     async def get(self, path: str, params: dict | None = None) -> dict:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
