@@ -7,6 +7,7 @@ failing component named so Swarm stops routing to the replica.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 
@@ -18,6 +19,8 @@ from starlette.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 Check = Callable[[], Awaitable[bool]]
+
+CHECK_TIMEOUT_S = 2.0
 
 
 def db_check(session_factory: async_sessionmaker) -> Check:
@@ -48,7 +51,7 @@ async def readiness(checks: dict[str, Check]) -> tuple[dict, int]:
     healthy = True
     for name, check in checks.items():
         try:
-            ok = await check()
+            ok = await asyncio.wait_for(check(), CHECK_TIMEOUT_S)
         except Exception as exc:
             logger.warning("readiness check %s failed: %s", name, exc)
             ok = False
