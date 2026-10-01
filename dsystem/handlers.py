@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from dsystem.exceptions import AppException
 from dsystem.i18n import bind_locale_dir, get_language, translate
@@ -213,10 +214,42 @@ async def fallback_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=envelope)
 
 
+class UnhandledErrorMiddleware:
+    """Answers an unhandled exception inside the middleware stack, so CORS and the request id still wrap the 500.
+
+    Starlette runs the ``Exception`` handler in ``ServerErrorMiddleware``, outside every user middleware: that
+    500 leaves without ``Access-Control-Allow-Origin`` and the browser reports a network failure instead.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracking_send)
+        except Exception as exc:
+            if started:
+                raise
+            response = await fallback_handler(Request(scope), exc)
+            await response(scope, receive, send)
+
+
 def register_handlers(app: FastAPI, locale_dir: Path | str | None = None) -> None:
     init_sentry()
     if locale_dir is not None:
         bind_locale_dir(locale_dir)
+    app.add_middleware(UnhandledErrorMiddleware)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(AppException, app_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
