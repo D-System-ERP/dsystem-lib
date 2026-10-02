@@ -113,3 +113,25 @@ def test_notification_carries_translation_keys_and_stays_readable_without_them()
         "notification.created", {**base, "title_key": "notification.document.confirmed", "params": {"code": "SA-1"}}
     )
     assert keyed.title_key == "notification.document.confirmed" and keyed.params == {"code": "SA-1"}
+
+
+def test_closed_header_carries_an_optional_partner_amount():
+    header = {
+        "id": str(uuid4()),
+        "organization_id": str(uuid4()),
+        "code": "SA10008",
+        "kind": "sale",
+        "stage": "sale",
+        "status": "closed",
+        "version": 3,
+        "legal_entity_id": str(uuid4()),
+        "currency_code": "UZS",
+        "total": "425600",
+        "total_base": "425600",
+        "document_date": datetime(2026, 10, 2, tzinfo=timezone.utc).isoformat(),
+    }
+    assert validate_payload("document.closed", header).partner_amount is None
+    closed = validate_payload("document.closed", {**header, "partner_amount": "106400"})
+    assert closed.partner_amount == Decimal("106400")
+    confirmed = validate_payload("document.confirmed", header)
+    assert confirmed.partner_amount == Decimal("0")

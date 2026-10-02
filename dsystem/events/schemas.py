@@ -492,6 +492,9 @@ class DocumentHeaderV1(EventPayload):
     to_stage: str | None = None
     cancel_reason: str | None = None
     lines_changed: list[dict[str, Any]] = Field(default_factory=list)
+    # What the partner owes for the document now, in the base currency, when it is not `total_base` — a sale or
+    # purchase closed part-delivered owes only what was delivered. None means `total_base`.
+    partner_amount: Decimal | None = None
 
 
 class DocumentConfirmedV1(DocumentHeaderV1):
