@@ -736,6 +736,7 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "document.closed": DocumentHeaderV1,
     "document.amended": DocumentHeaderV1,
     "document.confirmed": DocumentConfirmedV1,
+    "document.charge_added": DocumentConfirmedV1,
     "document.shipped": DocumentShippedV1,
     "document.received": DocumentShippedV1,
     "document.fulfilment_changed": DocumentFulfilmentChangedV1,
