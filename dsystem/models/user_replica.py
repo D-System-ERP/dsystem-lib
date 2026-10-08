@@ -11,7 +11,8 @@ class UserReplica(ReferenceModel):
     __tablename__ = "user_replicas"
 
     organization_id: Mapped[UUID] = mapped_column(index=True)
-    email: Mapped[str] = mapped_column(String(255))
+    username: Mapped[str | None] = mapped_column(String(150))
+    email: Mapped[str | None] = mapped_column(String(255))
     first_name: Mapped[str | None] = mapped_column(String(150))
     last_name: Mapped[str | None] = mapped_column(String(150))
     middle_name: Mapped[str | None] = mapped_column(String(150))
@@ -26,4 +27,5 @@ class UserReplica(ReferenceModel):
 
     @property
     def full_name(self) -> str:
-        return " ".join(p for p in (self.last_name, self.first_name, self.middle_name) if p) or self.email
+        name = " ".join(p for p in (self.last_name, self.first_name, self.middle_name) if p)
+        return name or self.username or self.email or ""

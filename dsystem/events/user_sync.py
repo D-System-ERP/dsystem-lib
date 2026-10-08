@@ -13,6 +13,7 @@ from dsystem.utils.timezone import utc_now
 logger = logging.getLogger(__name__)
 
 USER_FIELDS = (
+    "username",
     "email",
     "first_name",
     "last_name",

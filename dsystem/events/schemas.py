@@ -23,7 +23,8 @@ class EventPayload(BaseModel):
 class UserV1(EventPayload):
     id: UUID
     organization_id: UUID
-    email: str
+    username: str | None = None
+    email: str | None = None
     first_name: str | None = None
     last_name: str | None = None
     middle_name: str | None = None

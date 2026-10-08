@@ -29,7 +29,8 @@ class UserBrief(AppSchema):
     id: UUID
     first_name: str | None
     last_name: str | None
-    email: str
+    username: str | None = None
+    email: str | None = None
     picture_url: str | None
 
 
