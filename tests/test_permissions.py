@@ -38,3 +38,9 @@ def test_matrix_carries_stage_filters_for_documents():
     assert list(dashboard["actions"]) == ["view"]
     assert "stages" not in dashboard
     assert set(ACTIONS) == {"view", "create", "update", "delete"}
+
+
+def test_only_who_buys_and_keeps_the_books_sees_cost():
+    seeing = {name for name, template in TEMPLATES.items() if template.get("cost.view")}
+    assert seeing == {"Admin", "Purchase", "Accountant"}
+    assert actions_for("cost") == ("view",)

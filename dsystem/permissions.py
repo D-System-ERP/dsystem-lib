@@ -46,6 +46,7 @@ RESOURCES: Final[tuple[str, ...]] = (
     "uom",
     "price_list",
     "bom",
+    "cost",
     "manufacture",
     "transfer",
     "write_off",
@@ -76,6 +77,7 @@ RESOURCE_ACTIONS: Final[dict[str, tuple[str, ...]]] = {
     "dashboard": ("view",),
     "report": ("view",),
     "audit": ("view",),
+    "cost": ("view",),
     "settings": ("view", "update"),
 }
 
@@ -128,6 +130,7 @@ GROUPS: Final[list[dict]] = [
             {"key": "uom", "label": "Units of Measure"},
             {"key": "price_list", "label": "Price Lists"},
             {"key": "bom", "label": "Bills of Materials"},
+            {"key": "cost", "label": "Cost and Purchase Prices"},
         ],
     },
     {
