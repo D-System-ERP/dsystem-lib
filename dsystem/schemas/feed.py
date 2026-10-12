@@ -82,5 +82,33 @@ class FeedItem(AppSchema):
 
 
 class FeedPage(AppSchema):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "items": [
+                    {
+                        "key": "event:60718293-a4b5-4c6d-813b-5d6e7f809192",
+                        "kind": "event",
+                        "at": "2026-10-12T09:30:00Z",
+                        "event": {"type": "confirmed", "from_value": "draft", "to_value": "confirmed", "payload": None},
+                    },
+                    {
+                        "key": "note:d6e7f809-192a-4b3c-8d4e-5f6071829304",
+                        "kind": "note",
+                        "at": "2026-10-12T09:00:00Z",
+                        "note": {
+                            "id": "d6e7f809-192a-4b3c-8d4e-5f6071829304",
+                            "body": "Yetkazib beruvchi ertaga yuboradi",
+                            "parent_id": None,
+                            "reply_to_id": None,
+                            "updated_at": "2026-10-12T09:00:00Z",
+                        },
+                    },
+                ],
+                "next_before": "2026-10-12T09:00:00Z",
+            }
+        }
+    )
+
     items: list[FeedItem] = Field(..., description="Newest first")
     next_before: datetime | None = Field(None, description="Pass as `before` for older rows; null when none are left")

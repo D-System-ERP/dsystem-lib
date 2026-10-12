@@ -17,6 +17,8 @@ class NoteCreate(AppSchema):
 
 
 class NoteUpdate(AppSchema):
+    model_config = ConfigDict(json_schema_extra={"example": {"body": "Yetkazib beruvchi dushanba yuboradi"}})
+
     body: str = Field(..., min_length=1, max_length=10000)
 
 
