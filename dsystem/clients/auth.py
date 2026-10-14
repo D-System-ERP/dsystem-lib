@@ -1,8 +1,10 @@
 import os
+from collections.abc import Collection
 from uuid import UUID
 
 from dsystem.cache import cache_aside, cache_invalidate
 from dsystem.clients.service import ServiceClient
+from dsystem.dependencies.auth import TokenPayload, _decode_permissions, _decode_stage_filters
 
 _TTL_SECONDS = 300
 
@@ -28,6 +30,32 @@ class AuthServiceClient(ServiceClient):
     async def legal_entities(self, organization_id: UUID | str | None = None) -> list[dict]:
         params = {"organization_id": str(organization_id)} if organization_id else None
         return await self.get("/api/internal/legal-entities", params=params)
+
+    async def user_permissions(self, organization_id: UUID | str, user_ids: Collection[UUID]) -> list[dict]:
+        body = {"organization_id": str(organization_id), "user_ids": [str(user_id) for user_id in user_ids]}
+        return await self.post("/api/internal/users/permissions", body)
+
+
+async def viewers(organization_id: UUID, user_ids: Collection[UUID]) -> dict[UUID, TokenPayload]:
+    """Each active person of the organization as their access token would read — what a service checks before it tells
+    someone of a record (`Requires(...)(viewer)` answers as for a request of theirs). A missing person is left out; an
+    auth that cannot answer raises."""
+    if not user_ids:
+        return {}
+    rows = await AuthServiceClient().user_permissions(organization_id, user_ids)
+    return {
+        UUID(row["id"]): TokenPayload(
+            user_id=UUID(row["id"]),
+            org_id=organization_id,
+            role_id=UUID(row["role_id"]) if row.get("role_id") else None,
+            is_superuser=bool(row.get("is_superuser")),
+            team_id=UUID(row["team_id"]) if row.get("team_id") else None,
+            permissions=_decode_permissions(row.get("p") or {}),
+            stage_filters=_decode_stage_filters(row.get("ps") or {}),
+        )
+        for row in rows
+        if row.get("is_active", True)
+    }
 
 
 async def organization_settings(organization_id: UUID | str) -> dict:

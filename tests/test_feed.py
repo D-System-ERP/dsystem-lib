@@ -70,6 +70,9 @@ def test_a_note_becomes_a_feed_row_by_its_author():
         body="Ertaga yuboradi",
         parent_id=None,
         reply_to_id=None,
+        mention_ids=[],
+        pinned_at=None,
+        pinned_by_id=None,
         created_at=START,
         updated_at=START,
     )

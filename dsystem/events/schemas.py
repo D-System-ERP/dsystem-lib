@@ -693,6 +693,38 @@ class ManualEntryV1(EventPayload):
     status: str
 
 
+class FeedChangedV1(EventPayload):
+    """A row of a record's feed put on, changed or taken off — `feed.item_added`, `feed.item_updated`,
+    `feed.item_removed`. The socket sends it to the record's live channel; crm keeps «Чаты» from it."""
+
+    organization_id: UUID
+    target_type: str
+    target_id: UUID
+    target_code: str | None = None
+    target_title: str | None = None
+    document_kind: str | None = None
+    key: str
+    item: dict[str, Any] | None = None
+    actor_id: UUID | None = None
+    at: datetime
+    excerpt: str | None = None
+    people: list[UUID] = Field(default_factory=list)
+    mention_ids: list[UUID] = Field(default_factory=list)
+    excluded_session_ids: list[str] = Field(default_factory=list)
+
+
+class FeedReadV1(EventPayload):
+    """`feed.read` — a person read a record's feed up to `at`."""
+
+    organization_id: UUID
+    target_type: str
+    target_id: UUID
+    document_kind: str | None = None
+    user_id: UUID
+    user: dict[str, Any] | None = None
+    at: datetime
+
+
 CONTRACTS: dict[str, type[EventPayload]] = {
     "user.created": UserV1,
     "user.updated": UserV1,
@@ -754,6 +786,10 @@ CONTRACTS: dict[str, type[EventPayload]] = {
     "contract.expired": ContractV1,
     "manual_entry.confirmed": ManualEntryV1,
     "manual_entry.cancelled": ManualEntryV1,
+    "feed.item_added": FeedChangedV1,
+    "feed.item_updated": FeedChangedV1,
+    "feed.item_removed": FeedChangedV1,
+    "feed.read": FeedReadV1,
 }
 
 

@@ -12,7 +12,9 @@ service suites, not just `lib`'s.
 `replica_sync.py` + partner/legal-entity/user sync), `middleware/` (audit, idempotency, cancel-on-disconnect),
 `handlers.py` (error envelope + i18n), `i18n.py`, `observability.py` (Sentry + Prometheus), `storage.py` /
 `public_storage.py` (R2), `money.py`, `uom.py`, `sequences.py`, `permissions.py`, `role_templates.py`,
-`locale/` (the 31 generic keys every service copies).
+`locale/` (the 31 generic keys every service copies), `chat.py` + `record_chat.py` (a record's notes as a chat:
+`<@id>`/`<@all>` parsing, who hears what, reactions, pins, read marks, `feed.*` events — `RecordChat` is subclassed
+per record kind in crm and operations).
 
 ## Rules that bite
 
