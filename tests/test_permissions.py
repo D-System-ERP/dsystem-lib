@@ -44,3 +44,19 @@ def test_only_who_buys_and_keeps_the_books_sees_cost():
     seeing = {name for name, template in TEMPLATES.items() if template.get("cost.view")}
     assert seeing == {"Admin", "Purchase", "Accountant"}
     assert actions_for("cost") == ("view",)
+
+
+def test_a_template_that_makes_tasks_sees_their_boards():
+    for name, template in TEMPLATES.items():
+        if template.get("task.create"):
+            assert template.get("board.view"), name
+
+
+def test_every_template_names_people():
+    for name, template in TEMPLATES.items():
+        assert template.get("user.view") == "all", name
+
+
+def test_invoices_and_refunds_have_a_stage_of_their_own():
+    assert STAGES_BY_KIND["sale"][-2:] == ("invoice", "refund")
+    assert STAGES_BY_KIND["purchase"][-1] == "refund"

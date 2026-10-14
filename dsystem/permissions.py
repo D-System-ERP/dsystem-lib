@@ -21,8 +21,8 @@ NO_ACCESS: Final[str] = "none"
 # permission to a subset of stages (role_permissions.stage_filter); the JWT
 # carries it as ``ps`` and ``Scope.check_stage`` enforces it.
 STAGES_BY_KIND: Final[dict[str, tuple[str, ...]]] = {
-    "sale": ("offer", "order", "sale", "shipment"),
-    "purchase": ("request", "order", "purchase", "receipt"),
+    "sale": ("offer", "order", "sale", "shipment", "invoice", "refund"),
+    "purchase": ("request", "order", "purchase", "receipt", "refund"),
     "manufacture": ("request", "order", "production"),
 }
 

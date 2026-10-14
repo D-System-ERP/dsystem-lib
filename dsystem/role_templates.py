@@ -61,7 +61,7 @@ PURCHASE: Final[dict[str, str]] = {
 WAREHOUSE: Final[dict[str, str]] = {
     "project.view": "own",
     **_full("product", "packaging", "warehouse", "stock", "uom", "transfer", "write_off"),
-    **_view("partner", "sale", "purchase", "manufacture", "bom", "price_list", "notification", "task"),
+    **_view("partner", "sale", "purchase", "manufacture", "bom", "price_list", "notification", "board", "task"),
     "sale.update": "all",
     "purchase.update": "all",
     "task.create": "all",
@@ -99,7 +99,7 @@ ACCOUNTANT: Final[dict[str, str]] = {
 PRODUCTION: Final[dict[str, str]] = {
     "project.view": "own",
     **_full("manufacture", "bom"),
-    **_view("product", "packaging", "warehouse", "stock", "uom", "transfer", "notification", "task"),
+    **_view("product", "packaging", "warehouse", "stock", "uom", "transfer", "notification", "board", "task"),
     "transfer.create": "all",
     "transfer.update": "own",
     "task.create": "all",
@@ -119,6 +119,8 @@ LOADER: Final[dict[str, str]] = {
     "purchase.update": "all",
     "transfer.update": "all",
     "task.update": "own",
+    "user.view": "all",
+    "team.view": "all",
 }
 
 TEMPLATES: Final[dict[str, dict[str, str]]] = {
