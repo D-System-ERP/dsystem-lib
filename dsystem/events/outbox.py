@@ -41,8 +41,7 @@ GAUGE_EVERY_TICKS = 12
 
 
 def _publisher_ready() -> bool:
-    channel = publisher._channel
-    return channel is not None and not channel.is_closed
+    return publisher.is_ready()
 
 
 async def _deliver(routing_key: str, payload: dict, event_id) -> None:

@@ -5,6 +5,7 @@ from typing import Any
 
 import aio_pika
 
+from dsystem.events.connection import retry_until_connected
 from dsystem.observability import record_event_consumed
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ async def start_consumer(
     it, so nothing is lost silently and the admin panel can replay it. Handlers
     therefore must be idempotent — dedupe by ``event_id`` with ``events.inbox.run_once``.
     """
-    connection = await aio_pika.connect_robust(rabbitmq_url)
+    connection = await retry_until_connected(lambda: aio_pika.connect_robust(rabbitmq_url), queue_name)
     channel = await connection.channel()
     await channel.set_qos(prefetch_count=prefetch_count)
 

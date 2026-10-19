@@ -42,8 +42,7 @@ async def redis_check() -> bool:
 async def rabbitmq_check() -> bool:
     from dsystem.events import publisher
 
-    channel = publisher._channel
-    return channel is not None and not channel.is_closed
+    return publisher.is_ready()
 
 
 async def readiness(checks: dict[str, Check]) -> tuple[dict, int]:
