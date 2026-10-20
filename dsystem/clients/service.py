@@ -1,4 +1,6 @@
+import asyncio
 import os
+import weakref
 from typing import Any
 
 import httpx
@@ -9,6 +11,23 @@ from dsystem.dependencies.service_auth import get_service_secret
 
 def _ambient_secret() -> str:
     return os.environ.get("SERVICE_SECRET_KEY") or get_service_secret()
+
+
+KEEPALIVE_SECONDS = 4.0
+
+_clients: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, httpx.AsyncClient]" = weakref.WeakKeyDictionary()
+
+
+def pooled_client() -> httpx.AsyncClient:
+    """One client per event loop, its connections kept alive between calls. A client per call opened a new connection
+    and looked the host up every time (2026-10-20 perf review, P12). Idle connections close before uvicorn's 5 s
+    keep-alive does, so a reused one is never one the server is closing."""
+    loop = asyncio.get_running_loop()
+    client = _clients.get(loop)
+    if client is None or client.is_closed:
+        limits = httpx.Limits(max_connections=100, max_keepalive_connections=20, keepalive_expiry=KEEPALIVE_SECONDS)
+        client = _clients[loop] = httpx.AsyncClient(limits=limits)
+    return client
 
 
 class RemoteServiceError(RuntimeError):
@@ -47,25 +66,27 @@ class ServiceClient:
         raise RemoteServiceError(self.base_url, resp.status_code, str(detail), body)
 
     async def get(self, path: str, params: dict | None = None) -> dict:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.get(f"{self.base_url}{path}", params=params, headers=self._headers())
-            self._raise(resp)
-            return resp.json()
+        resp = await pooled_client().get(
+            f"{self.base_url}{path}", params=params, headers=self._headers(), timeout=self.timeout
+        )
+        self._raise(resp)
+        return resp.json()
 
     async def post(self, path: str, json: Any = None) -> dict:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(f"{self.base_url}{path}", json=json, headers=self._headers())
-            self._raise(resp)
-            return resp.json()
+        resp = await pooled_client().post(
+            f"{self.base_url}{path}", json=json, headers=self._headers(), timeout=self.timeout
+        )
+        self._raise(resp)
+        return resp.json()
 
     async def patch(self, path: str, json: Any = None) -> dict:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.patch(f"{self.base_url}{path}", json=json, headers=self._headers())
-            self._raise(resp)
-            return resp.json()
+        resp = await pooled_client().patch(
+            f"{self.base_url}{path}", json=json, headers=self._headers(), timeout=self.timeout
+        )
+        self._raise(resp)
+        return resp.json()
 
     async def delete(self, path: str) -> dict:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.delete(f"{self.base_url}{path}", headers=self._headers())
-            self._raise(resp)
-            return resp.json()
+        resp = await pooled_client().delete(f"{self.base_url}{path}", headers=self._headers(), timeout=self.timeout)
+        self._raise(resp)
+        return resp.json()
