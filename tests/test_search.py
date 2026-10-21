@@ -51,3 +51,24 @@ def test_fold_is_built_from_builtin_functions():
     sql = str(fold(table.c.name).compile(dialect=postgresql.dialect()))
     assert sql.startswith("regexp_replace(")
     assert "lower(t.name)" in sql
+
+
+@pytest.mark.parametrize(
+    ("latin", "cyrillic"),
+    [
+        ("FedEx", "Федекс"),
+        ("Coca-Cola", "Кока-Кола"),
+        ("Xerox", "Ксерокс"),
+        ("Microsoft", "Микрософт"),
+        ("Pharma", "Фарма"),
+        ("Wolt", "Волт"),
+        ("Citroen", "Ситроен"),
+    ],
+)
+def test_a_borrowed_word_meets_its_cyrillic_spelling_on_the_loan_key(latin, cyrillic):
+    assert fold_text(latin, loan=True) == fold_text(cyrillic, loan=True)
+
+
+def test_the_loan_key_leaves_ch_and_uzbek_x_to_the_native_one():
+    assert fold_text("Chevron", loan=True) == "chevron"
+    assert fold_text("Xorazm") == fold_text("Хоразм")
