@@ -177,6 +177,7 @@ class PartnerV1(EventPayload):
     bank_accounts: list[BankAccountV1] = Field(default_factory=list)
     addresses: list[PartnerAddressV1] = Field(default_factory=list)
     contacts: list[PartnerContactV1] = Field(default_factory=list)
+    created_by_id: UUID | None = None
     is_deleted: bool = False
 
 

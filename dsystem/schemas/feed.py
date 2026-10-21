@@ -25,7 +25,8 @@ class NoteQuote(AppSchema):
     """The message a reply answers, as the reply quotes it — there even when it is pages back in the feed."""
 
     id: UUID
-    body: str | None = Field(None, description="Its first 200 characters; null once it was deleted")
+    body: str | None = Field(None, description="Its first 200 characters; null once it was deleted, or for a file")
+    filename: str | None = Field(None, description="A file of the record answered: its name (`body` is null)")
     user_id: UUID | None = Field(None, exclude=True)
     user: Annotated[UserBrief | None, Inline("user_id")] = None
     mention_ids: list[UUID] = Field(default_factory=list, exclude=True)
@@ -48,8 +49,8 @@ class FeedNote(AppSchema):
     id: UUID
     body: str = Field(..., description="`<@{user_id}>` names a person, `<@all>` the record's people")
     parent_id: UUID | None = None
-    reply_to_id: UUID | None = None
-    reply_to: NoteQuote | None = Field(None, description="The message this one answers")
+    reply_to_id: UUID | None = Field(None, description="The note or the file row (`FeedFile.id`) this one answers")
+    reply_to: NoteQuote | None = Field(None, description="The message or file this one answers")
     mention_ids: list[UUID] = Field(default_factory=list, exclude=True)
     mentions: Annotated[list[UserBrief], Inline("mention_ids")] = Field(
         default_factory=list, description="The people the body names, by their current names"
@@ -107,6 +108,11 @@ class FeedBoard(AppSchema):
     color: str | None = None
 
 
+class FeedCan(AppSchema):
+    update: bool = False
+    delete: bool = False
+
+
 class FeedTask(AppSchema):
     """A board task tied to the record."""
 
@@ -118,6 +124,11 @@ class FeedTask(AppSchema):
     ends_at: datetime | None = None
     assignee_ids: list[UUID] = Field(default_factory=list, exclude=True)
     assignees: Annotated[list[UserBrief], Inline("assignee_ids")] = Field(default_factory=list)
+    can: FeedCan | None = Field(
+        None,
+        description="What the caller may do to the task — `task:update` and `task:delete` with their reach (own = made "
+        "by, assigned to or watched by the caller); null on a live channel frame, which many people read",
+    )
 
 
 class FeedItem(AppSchema):

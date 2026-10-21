@@ -5,6 +5,7 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from dsystem.caller import set_caller
 from dsystem.legal_entity_scope import scope_for, set_legal_entity_scope
 
 security = HTTPBearer()
@@ -138,6 +139,7 @@ async def get_current_user(
 
     await _enforce_token_state(user, payload.get("iat"))
     set_legal_entity_scope(scope_for(user))
+    set_caller(user)
 
     return user
 

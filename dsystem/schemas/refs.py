@@ -8,10 +8,11 @@ from functools import cache
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsystem.caller import current_caller
 from dsystem.context import get_audit_context
 from dsystem.models.legal_entity_replica import LegalEntityReplica
 from dsystem.models.partner_replica import PartnerReplica
@@ -23,6 +24,11 @@ class PartnerBrief(AppSchema):
     id: UUID
     code: str
     name: str
+    can_view: bool = Field(
+        True,
+        description="The caller may open this partner: its `partner.view` reaches it (`own` = made it, "
+        "`team` = made by the caller's team)",
+    )
 
 
 class UserBrief(AppSchema):
@@ -219,9 +225,35 @@ async def resolve_inline(session: AsyncSession, value, sources: Mapping[type[Bas
             stmt = stmt.where(spec.model.organization_id == organization_id)
         rows = await session.scalars(stmt.options(*spec.options))
         build = spec.build or brief.model_validate
-        found[brief] = {row.id: build(row) for row in rows}
+        built = {row.id: (row, build(row)) for row in rows}
+        if issubclass(brief, PartnerBrief):
+            reaches = await _partner_reach(session)
+            for row, item in built.values():
+                item.can_view = reaches(getattr(row, "created_by_id", None))
+        found[brief] = {row_id: item for row_id, (_, item) in built.items()}
     _walk(value, lambda item, plan: _fill(item, plan, found))
     return value
+
+
+async def _partner_reach(session: AsyncSession) -> Callable[[UUID | None], bool]:
+    """Whose partners the caller's `partner.view` reaches, as crm's `RecordAccess` decides it: everyone's for
+    `all` (and for a superuser or a service call), the caller's own for `own`, their team's for `team`, nobody's
+    without it."""
+    user = current_caller()
+    if user is None or user.is_superuser:
+        return lambda _owner: True
+    scope = (user.permissions.get("partner") or {}).get("view")
+    if scope is None:
+        return lambda _owner: False
+    if scope == "all":
+        return lambda _owner: True
+    if scope == "team" and user.team_id is not None:
+        stmt = select(UserReplica.id).where(
+            UserReplica.organization_id == user.org_id, UserReplica.team_id == user.team_id
+        )
+        members = set(await session.scalars(stmt))
+        return lambda owner: owner is not None and owner in members
+    return lambda owner: owner == user.user_id
 
 
 def _fill(item, plan: _Plan, found: dict[type[BaseModel], dict[UUID, BaseModel]]) -> None:

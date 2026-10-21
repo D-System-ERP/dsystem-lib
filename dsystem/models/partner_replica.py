@@ -13,7 +13,8 @@ class PartnerReplica(ReferenceModel):
     """``crm.partners`` as other services see it — kept in sync by ``partner.*`` events.
 
     Only what documents and payments need to validate and display; the full
-    partner (contacts, notes) lives in crm. ``is_deleted`` rather than a hard
+    partner (contacts, notes) lives in crm. created_by_id is who made it — what an own partner scope
+    reaches, so a service can say whether its caller may open the partner it names. ``is_deleted`` rather than a hard
     delete so historical documents still resolve their partner.
     """
 
@@ -39,6 +40,7 @@ class PartnerReplica(ReferenceModel):
     balance_base: Mapped[Decimal] = mapped_column(Numeric(20, 6), default=Decimal("0"))
     addresses: Mapped[list | None] = mapped_column(JSONB)
     bank_accounts: Mapped[list | None] = mapped_column(JSONB)
+    created_by_id: Mapped[UUID | None]
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     source_updated_at: Mapped[datetime | None]
 
@@ -62,4 +64,5 @@ PARTNER_REPLICA_FIELDS: tuple[str, ...] = (
     "credit_limit",
     "addresses",
     "bank_accounts",
+    "created_by_id",
 )

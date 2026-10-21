@@ -24,6 +24,7 @@ class NoteMixin:
     )
     pinned_at: Mapped[datetime | None]
     pinned_by_id: Mapped[UUID | None]
+    reply_to_file_id: Mapped[UUID | None]
 
     @declared_attr
     def parent_id(cls) -> Mapped[UUID | None]:

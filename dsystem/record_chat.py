@@ -257,10 +257,7 @@ class RecordChat:
         )
 
     async def _replied_author(self, note: Any) -> UUID | None:
-        if note.reply_to_id is None:
-            return None
-        quotes = await self.notes.quotes([note.reply_to_id])
-        quote = quotes.get(note.reply_to_id)
+        quote = await self.notes.quote_of(note)
         return quote.user_id if quote is not None and not quote.deleted else None
 
     async def _names(self, user_ids: Iterable[UUID | None]) -> dict[UUID, str]:

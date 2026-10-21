@@ -20,7 +20,9 @@ class NoteCreate(AppSchema):
         "`<@all>` the record's people",
     )
     parent_id: UUID | None = Field(None, description="The note this one is nested under")
-    reply_to_id: UUID | None = Field(None, description="The note this one answers")
+    reply_to_id: UUID | None = Field(
+        None, description="The note this one answers, or a file row of the record's feed (`FeedFile.id`)"
+    )
 
 
 class NoteUpdate(AppSchema):

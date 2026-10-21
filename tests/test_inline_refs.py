@@ -150,7 +150,7 @@ def test_route_fills_objects_with_the_request_session():
     session.vendor_ids = [pid]
     client = TestClient(_app(session))
     body = client.get(f"/api/docs/{pid}").json()
-    assert body["partner"] == {"id": str(pid), "code": "P1", "name": "Acme"}
+    assert body["partner"] == {"id": str(pid), "code": "P1", "name": "Acme", "can_view": True}
     assert body["partner_id"] == str(pid)
     rows = client.get("/api/rows").json()
     assert rows[0]["vendor"]["name"] == "Acme"
@@ -206,3 +206,53 @@ async def test_a_source_can_build_its_brief():
     doc = DocRead(partner_id=p1, created_by_id=None, assignee_ids=[])
     await resolve_inline(session, doc, {PartnerBrief: Source(PartnerReplica, build=upper)})
     assert doc.partner.name == "ACME"
+
+
+def caller(scope, *, team_id=None, superuser=False):
+    permissions = {"partner": {"view": scope}} if scope else {}
+    return SimpleNamespace(user_id=ME, org_id=uuid4(), team_id=team_id, is_superuser=superuser, permissions=permissions)
+
+
+ME, MATE, OTHER = uuid4(), uuid4(), uuid4()
+
+
+def made_by(pid, owner):
+    return SimpleNamespace(table=PartnerReplica.__tablename__, id=pid, code="P1", name="Acme", created_by_id=owner)
+
+
+class TeamSession(FakeSession):
+    def __init__(self, rows, members):
+        super().__init__(rows)
+        self.members = members
+
+    async def scalars(self, statement):
+        if statement.get_final_froms()[0].name == UserReplica.__tablename__:
+            return self.members
+        return await super().scalars(statement)
+
+
+async def _views(scope_caller, owners, users=()):
+    from dsystem.caller import set_caller
+
+    set_caller(scope_caller)
+    try:
+        ids = [uuid4() for _ in owners]
+        session = TeamSession([made_by(pid, owner) for pid, owner in zip(ids, owners)], list(users))
+        nodes = [NodeRead(partner_id=pid) for pid in ids]
+        await resolve_inline(session, nodes)
+        return [node.partner.can_view for node in nodes]
+    finally:
+        set_caller(None)
+
+
+async def test_a_partner_says_whether_the_callers_view_reaches_it():
+    assert await _views(caller("all"), [OTHER]) == [True]
+    assert await _views(caller("own"), [ME, OTHER, None]) == [True, False, False]
+    assert await _views(caller(None), [ME]) == [False]
+    assert await _views(caller(None, superuser=True), [OTHER]) == [True]
+    assert await _views(None, [OTHER]) == [True]
+
+
+async def test_a_team_scope_reaches_the_partners_its_team_made():
+    team = uuid4()
+    assert await _views(caller("team", team_id=team), [MATE, OTHER], users=[MATE]) == [True, False]

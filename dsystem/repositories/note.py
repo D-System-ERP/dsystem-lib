@@ -1,4 +1,4 @@
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Collection, Iterable, Sequence
 from datetime import datetime
 from uuid import UUID
 
@@ -12,18 +12,30 @@ from dsystem.schemas.feed import FeedItem, FeedKind, FeedNote, FeedReaction, Fee
 from dsystem.schemas.note import NoteRead
 from dsystem.utils.timezone import utc_now
 
+FileQuotes = Callable[[Collection[UUID]], Awaitable[dict[UUID, NoteQuote]]]
+
 
 class NoteRepository(TenantRepository):
     """The notes of one record kind, in the service's own `NoteMixin` table; its reactions in `reactions`, a
-    `NoteReactionMixin` table, when the service keeps them."""
+    `NoteReactionMixin` table, when the service keeps them; `file_quotes` quotes the record's file rows a note answers
+    (2026-10-21, khojiakbar's `2026-10-14-record-chat.md` § 11)."""
 
     soft_delete = True
 
-    def __init__(self, db: AsyncSession, org_id: UUID, model: type, target_type: str, reactions: type | None = None):
+    def __init__(
+        self,
+        db: AsyncSession,
+        org_id: UUID,
+        model: type,
+        target_type: str,
+        reactions: type | None = None,
+        file_quotes: FileQuotes | None = None,
+    ):
         super().__init__(db, org_id)
         self.model = model
         self.target_type = target_type
         self.reactions = reactions
+        self.file_quotes = file_quotes
 
     def for_target(self, target_id: UUID) -> Select:
         return (
@@ -96,7 +108,7 @@ class NoteRepository(TenantRepository):
 
     async def items(self, rows: Sequence) -> list[FeedItem]:
         quotes, reactions = await self._extras(rows)
-        return [note_item(row, quotes.get(row.reply_to_id), reactions.get(row.id, [])) for row in rows]
+        return [note_item(row, quotes.get(replied(row)), reactions.get(row.id, [])) for row in rows]
 
     async def item(self, row) -> FeedItem:
         return (await self.items([row]))[0]
@@ -108,7 +120,8 @@ class NoteRepository(TenantRepository):
             NoteRead.model_validate(
                 {
                     **{name: getattr(row, name) for name in _READ_COLUMNS},
-                    "reply_to": quotes.get(row.reply_to_id),
+                    "reply_to_id": replied(row),
+                    "reply_to": quotes.get(replied(row)),
                     "reactions": reactions.get(row.id, []),
                     "unreachable_mention_ids": list(unreachable),
                 }
@@ -120,9 +133,16 @@ class NoteRepository(TenantRepository):
         return (await self.reads([row], unreachable))[0]
 
     async def _extras(self, rows: Sequence) -> tuple[dict[UUID, NoteQuote], dict[UUID, list[FeedReaction]]]:
-        return await self.quotes({row.reply_to_id for row in rows} - {None}), await self.reactions_of(
-            [row.id for row in rows]
-        )
+        quotes = await self.quotes({row.reply_to_id for row in rows} - {None})
+        files = {row.reply_to_file_id for row in rows} - {None}
+        if files and self.file_quotes is not None:
+            quotes |= await self.file_quotes(files)
+        return quotes, await self.reactions_of([row.id for row in rows])
+
+    async def quote_of(self, row) -> NoteQuote | None:
+        """What a note answers, a note or a file."""
+        quotes, _ = await self._extras([row])
+        return quotes.get(replied(row))
 
     async def quotes(self, note_ids: Collection[UUID]) -> dict[UUID, NoteQuote]:
         """The messages replied to, a deleted one too — it answers `deleted` and no words."""
@@ -192,6 +212,16 @@ def _emoji_order(emoji: str) -> int:
     return REACTIONS.index(emoji) if emoji in REACTIONS else len(REACTIONS)
 
 
+def replied(row) -> UUID | None:
+    """The note or the file row a note answers."""
+    return row.reply_to_id or getattr(row, "reply_to_file_id", None)
+
+
+def file_quote(row_id: UUID, filename: str, user_id: UUID | None, *, deleted: bool) -> NoteQuote:
+    """A file row of the record as a reply quotes it: its name and who put it on, `deleted` once taken off."""
+    return NoteQuote(id=row_id, body=None, filename=None if deleted else filename, user_id=user_id, deleted=deleted)
+
+
 def quote(row) -> NoteQuote:
     if row.deleted_at is not None:
         return NoteQuote(id=row.id, body=None, user_id=row.user_id, deleted=True)
@@ -210,7 +240,7 @@ def note_item(row, reply_to: NoteQuote | None = None, reactions: list[FeedReacti
             id=row.id,
             body=row.body,
             parent_id=row.parent_id,
-            reply_to_id=row.reply_to_id,
+            reply_to_id=replied(row),
             reply_to=reply_to,
             mention_ids=list(row.mention_ids or ()),
             reactions=reactions or [],
