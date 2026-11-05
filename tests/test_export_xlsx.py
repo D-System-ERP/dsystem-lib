@@ -130,3 +130,12 @@ def test_columns_widen_to_fit_large_amounts_and_cap_long_text():
 
     assert 60 <= widths["A"] < 62
     assert widths["B"] >= len("11,742,673,351,080.00")
+
+
+def test_a_column_title_is_written_as_given():
+    columns = (*COLUMNS, Column("warehouse_1", 14, QUANTITY, title="Склад №4. Сырьё"))
+    rows = [(*row, Decimal("3")) for row in _rows()]
+
+    header = _read(workbook_bytes(_sheet(rows, columns=columns)))[2]
+
+    assert header[:2] == ("document_code", "document_date") and header[4] == "Склад №4. Сырьё"

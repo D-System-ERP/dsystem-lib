@@ -9,7 +9,7 @@ import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
 from xlsxwriter.worksheet import Worksheet
 
-from dsystem.export.columns import DAY, MONEY, QUANTITY, Column, label
+from dsystem.export.columns import DAY, MONEY, QUANTITY, Column, column_heading, label
 from dsystem.export.sheet import Sheet, meta_text, title_text
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -58,7 +58,7 @@ def workbook_bytes(sheet: Sheet) -> bytes:
     ws.write_string(_META_ROW, 0, meta_text(sheet), book.add_format(_META))
     header = book.add_format(_HEADER)
     for index, column in enumerate(columns):
-        ws.write_string(_HEADER_ROW, index, label(f"report.column.{column.key}", sheet.lang), header)
+        ws.write_string(_HEADER_ROW, index, column_heading(column, sheet.lang), header)
 
     sums: dict[int, Decimal] = {index: Decimal(0) for index, column in enumerate(columns) if column.total}
     row_index = _FIRST_DATA_ROW

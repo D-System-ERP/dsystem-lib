@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fpdf import FPDF
 
-from dsystem.export.columns import DATE, DAY, MONEY, QUANTITY, Column, label
+from dsystem.export.columns import DATE, DAY, MONEY, QUANTITY, Column, column_heading, label
 from dsystem.export.sheet import Sheet, meta_text, title_text
 
 PDF_MEDIA_TYPE = "application/pdf"
@@ -81,7 +81,7 @@ def _draw_table(pdf: ReportPdf, sheet: Sheet) -> None:
     columns = sheet.columns
     aligns = ["R" if column.numeric else "L" for column in columns]
     rigid = [_rigid(column) for column in columns]
-    headings = [label(f"report.column.{column.key}", sheet.lang) for column in columns]
+    headings = [column_heading(column, sheet.lang) for column in columns]
     sums = {index: Decimal(0) for index, column in enumerate(columns) if column.total}
     body = []
     for values in sheet.rows:

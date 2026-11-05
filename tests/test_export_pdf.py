@@ -145,3 +145,12 @@ async def test_render_runs_off_the_event_loop():
     content = await render_table_pdf(_sheet(row for row in _rows(2)))
 
     assert "SO-1" in _pages(content)[0]
+
+
+def test_a_column_title_is_drawn_as_given():
+    columns = (*COLUMNS, Column("warehouse_1", 14, QUANTITY, title="Склад №4. Сырьё"))
+    rows = [(*row, Decimal("3")) for row in _rows(2)]
+
+    text = _pages(table_pdf(_sheet(rows, columns=columns)))[0]
+
+    assert "Склад №4. Сырьё" in " ".join(text.split())
