@@ -66,9 +66,15 @@ def test_template_stages_are_the_resources_own():
 
 def test_a_buyer_invoices_receipts_and_sells_nothing():
     grants = template_grants(TEMPLATES["Purchase"])
-    for action in ("view", "create", "update"):
+    for action in ("view", "create", "update", "delete"):
         assert grants[("sale", action)] == ("own", ("invoice",))
-    assert ("sale", "delete") not in grants
+
+
+def test_each_static_kind_runs_its_own_flow_whole():
+    for name, resource in (("Sales", "sale"), ("Purchase", "purchase"), ("Production", "manufacture")):
+        grants = template_grants(TEMPLATES[name])
+        for action in ("view", "create", "update", "delete"):
+            assert grants[(resource, action)] == ("all", None), f"{name}: {resource}.{action}"
 
 
 def test_production_writes_off_its_scrap():

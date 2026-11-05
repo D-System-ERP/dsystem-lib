@@ -37,7 +37,9 @@ SALES: Final[dict[str, str]] = {
         "activity.create": "all",
         "task.create": "all",
     },
-    **{f"sale.{a}": "own" for a in ("view", "create", "update")},
+    # A seller runs the whole sale flow, a colleague's draft too (2026-11-05, the owner: «sales flow dagi hamma narsani
+    # to'liq control»).
+    **_full("sale"),
     # A seller asks production and the buyers for what a sale lacks, and sees only the requests they sent (2026-11-04,
     # the owner).
     **_staged("own", ("request",), "manufacture.view", "manufacture.create", "purchase.view", "purchase.create"),
@@ -56,10 +58,11 @@ PURCHASE: Final[dict[str, Grant]] = {
     **_full("partner", "bank_account", "activity", "task", scope="own"),
     **_view("partner", "activity", "board", "task", "notification", "contract"),
     **{"partner.create": "all", "activity.create": "all", "task.create": "all"},
-    **{f"purchase.{a}": "own" for a in ("view", "create", "update")},
+    # A buyer runs the whole purchase flow (2026-11-05, the owner).
+    **_full("purchase"),
     # A receipt's invoice is a `sale` document at the `invoice` stage (operations `RESOURCE_BY_KIND`): the buyer
-    # makes it and reads it under Purchase's «Исходящие платежи».
-    **_staged("own", ("invoice",), "sale.view", "sale.create", "sale.update"),
+    # makes it, reads it under Purchase's «Исходящие платежи» and deletes a draft of theirs.
+    **_staged("own", ("invoice",), "sale.view", "sale.create", "sale.update", "sale.delete"),
     **_view("product", "packaging", "warehouse", "stock", "cost_adjustment", "uom", "price_list", "payment"),
     "cost.view": "all",
     "dashboard.view": "own",
