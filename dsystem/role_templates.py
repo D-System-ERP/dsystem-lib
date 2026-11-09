@@ -64,6 +64,9 @@ PURCHASE: Final[dict[str, Grant]] = {
     # makes it, reads it under Purchase's «Исходящие платежи» and deletes a draft of theirs.
     **_staged("own", ("invoice",), "sale.view", "sale.create", "sale.update", "sale.delete"),
     **_view("product", "packaging", "warehouse", "stock", "cost_adjustment", "uom", "price_list", "payment"),
+    # A buyer brings a product the catalogue lacks as an alternative to a specification's material (2026-11-09, the
+    # owner: «buyerga + button ham qoshamiz yangi tovarni qoshib ketaolishi uchun»).
+    "product.create": "all",
     "cost.view": "all",
     "dashboard.view": "own",
     "report.view": "own",
@@ -199,6 +202,9 @@ KTO: Final[dict[str, str]] = {
     **{f"product.{a}": "all" for a in ("view", "create", "update")},
     **{f"project.{a}": "all" for a in ("view", "update")},
     **_view("packaging", "uom", "stock", "notification"),
+    # The project's KTO picks one of the alternatives a buyer offers for a material, inside the purchase document
+    # (2026-11-09, the owner): `own` reaches the documents that ask them (operations `attrs.reviewer_ids`).
+    **_staged("own", ("request", "order", "purchase"), "purchase.view"),
     "lookup.view": "all",
     "legal_entity.view": "own",
     "user.view": "all",

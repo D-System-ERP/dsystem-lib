@@ -141,13 +141,21 @@ def test_kto_keeps_specifications_stock_catalogue_and_projects_only():
         "uom",
         "stock",
         "notification",
+        "purchase",
         "lookup",
         "legal_entity",
         "user",
         "team",
     }
     assert kto["project.update"] == "all" and "project.delete" not in kto
-    assert not any(key.startswith(("cost.", "price_list.", "sale.", "purchase.")) for key in kto)
+    assert not any(key.startswith(("cost.", "price_list.", "sale.")) for key in kto)
+
+
+def test_kto_sees_only_the_purchase_documents_that_ask_them_and_buyers_add_products():
+    kto = template_grants(TEMPLATES["KTO"])
+    assert kto[("purchase", "view")] == ("own", ("request", "order", "purchase"))
+    assert not any(resource == "purchase" and action != "view" for resource, action in kto)
+    assert template_grants(TEMPLATES["Purchase"])[("product", "create")] == ("all", None)
 
 
 def test_every_role_kind_is_cut_from_a_template():
