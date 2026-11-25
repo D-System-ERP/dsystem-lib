@@ -128,6 +128,8 @@ ACCOUNTANT: Final[dict[str, Grant]] = {
     **_staged("all", ("invoice",), "sale.create", "sale.update"),
     "employee.view": "all",
     "cost.view": "all",
+    # An accountant adds and changes partners (2026-11-25, the owner).
+    "partner.create": "all",
     "partner.update": "all",
     "legal_entity.view": "own",
     "legal_entity.update": "own",
